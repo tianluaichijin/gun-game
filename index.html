@@ -1,0 +1,3690 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>星海防线 · 网页版塔防</title>
+  <style>
+    :root{
+      --bg1:#07111d;--bg2:#0b1730;--bg3:#132442;
+      --panel:rgba(10,18,32,.58);--line:rgba(255,255,255,.10);
+      --text:#eef6ff;--muted:#9cb0c9;
+      --cyan:#6ee7ff;--violet:#b38cff;--amber:#ffd07a;--rose:#ff889f;--green:#7dffbb;--orange:#ffb366;
+      --shadow:0 18px 55px rgba(0,0,0,.38);--radius:22px;--sideW:360px;
+    }
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+    html,body{width:100%;height:100%;overflow:hidden;background:#040814;color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;overscroll-behavior:none;-webkit-user-select:none;user-select:none}
+    body{background:radial-gradient(1200px 900px at 20% 15%,rgba(98,197,255,.12),transparent 55%),
+         radial-gradient(900px 700px at 85% 12%,rgba(193,112,255,.10),transparent 52%),
+         linear-gradient(135deg,var(--bg1),var(--bg2) 48%,var(--bg3))}
+    #app{width:100vw;height:100vh;display:grid;grid-template-columns:minmax(0,1fr) var(--sideW);gap:14px;padding:14px}
+    #gameWrap{display:flex;flex-direction:column;gap:12px;min-width:0;min-height:0}
+    .panel,.topbar{backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);background:var(--panel);border:1px solid var(--line);box-shadow:var(--shadow);border-radius:var(--radius)}
+    .topbar{padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+    .title{font-size:clamp(16px,1.6vw,22px);font-weight:800;letter-spacing:.2px}
+    .sub{color:var(--muted);font-size:12px;margin-top:2px}
+    .statRow{display:flex;gap:8px;flex-wrap:wrap}
+    .stat{min-width:82px;padding:8px 12px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);transition:background .3s,border-color .3s}
+    .stat small{display:block;font-size:11px;color:var(--muted)}
+    .stat b{display:block;font-size:19px;margin-top:1px;transform-origin:left center}
+    @keyframes statPopUp{0%{transform:scale(1)}35%{transform:scale(1.22)}100%{transform:scale(1)}}
+    @keyframes statPopDown{0%{transform:scale(1)}35%{transform:scale(1.15)}100%{transform:scale(1)}}
+    .statPopUp{animation:statPopUp .38s cubic-bezier(.34,1.56,.64,1)}
+    .statPopDown{animation:statPopDown .38s cubic-bezier(.34,1.56,.64,1)}
+    .btnRow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    button,input{font:inherit;cursor:pointer;border:0;outline:none}
+    .btn{padding:9px 13px;border-radius:13px;background:rgba(255,255,255,.08);color:var(--text);border:1px solid rgba(255,255,255,.10);transition:.16s;display:inline-flex;align-items:center;gap:7px;font-size:14px}
+    .btn:hover{transform:translateY(-1px);background:rgba(255,255,255,.13)}
+    a.btn{text-decoration:none;-webkit-tap-highlight-color:transparent;cursor:pointer}
+    .btn:active{transform:translateY(0) scale(.96);transition:.06s}
+    .btn.primary{background:linear-gradient(135deg,#6ee7ff,#7dffbb);color:#02131d;font-weight:800}
+    .btn.danger{background:linear-gradient(135deg,#ff7f9c,#ffad76);color:#22070f;font-weight:800}
+    .btn.small{padding:7px 10px;border-radius:11px;font-size:13px}
+    .btn[disabled]{opacity:.4;cursor:not-allowed;transform:none}
+    #stageCard{position:relative;flex:1;min-height:0;padding:12px}
+    #canvasBox{position:relative;width:100%;height:100%;border-radius:18px;overflow:hidden;border:1px solid rgba(255,255,255,.10)}
+    canvas{display:block;width:100%;height:100%;touch-action:none}
+    button{touch-action:manipulation}
+    .chips{position:absolute;left:14px;bottom:14px;z-index:5;display:flex;gap:8px;flex-wrap:wrap;pointer-events:none}
+    .gameMiniMap{position:absolute;z-index:9;border-radius:12px;overflow:hidden;background:rgba(6,10,18,.72);border:1px solid rgba(255,255,255,.16);box-shadow:0 10px 30px rgba(0,0,0,.45);backdrop-filter:blur(10px)}
+    .miniHeader{cursor:move;font-size:10.5px;padding:5px 8px;background:rgba(255,255,255,.08);color:#cfe9ff;user-select:none;white-space:nowrap}
+    #miniMapCanvas{display:block;cursor:crosshair}
+    .miniResizeHandle{position:absolute;right:0;bottom:0;width:16px;height:16px;cursor:nwse-resize;background:linear-gradient(135deg,transparent 50%,rgba(255,255,255,.35) 50%)}
+    .chip{padding:7px 10px;border-radius:999px;background:rgba(0,0,0,.42);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(12px);font-size:12px;color:#edf5ff}
+
+    /* ── Wave banner + wave panel ── */
+    .waveBanner{position:absolute;left:50%;top:16%;transform:translate(-50%,-10px) scale(.96);z-index:8;padding:10px 24px;border-radius:16px;
+      background:rgba(6,12,22,.78);border:1px solid rgba(110,231,255,.35);box-shadow:0 14px 44px rgba(0,0,0,.5);
+      font-weight:800;font-size:clamp(15px,1.9vw,23px);letter-spacing:1px;color:#eaf7ff;opacity:0;pointer-events:none;
+      transition:opacity .25s ease,transform .25s cubic-bezier(.16,1,.3,1);white-space:nowrap}
+    .waveBanner.show{opacity:1;transform:translate(-50%,0) scale(1)}
+    .waveBanner.boss{color:#ffd36b;border-color:rgba(255,150,80,.55);text-shadow:0 0 20px rgba(255,120,40,.55);background:rgba(28,10,4,.8)}
+    .waveComp{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+    .waveChip{padding:3px 8px;border-radius:999px;font-size:11px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);color:#dbe9f7;white-space:nowrap}
+    .waveChip.boss{background:rgba(255,140,60,.16);border-color:rgba(255,140,60,.38);color:#ffcf9a}
+    .waveChip.heavy{background:rgba(196,132,252,.14);border-color:rgba(196,132,252,.3);color:#e3ccff}
+    #waveProgress{transition:width .18s linear}
+
+    /* ── Sidebar ── */
+    #side{display:flex;flex-direction:column;gap:12px;min-height:0;min-width:0;overflow-y:auto;overflow-x:hidden;padding-right:1px;padding-bottom:4px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+    #side::-webkit-scrollbar{width:4px}
+    #side::-webkit-scrollbar-track{background:transparent}
+    #side::-webkit-scrollbar-thumb{background:rgba(110,231,255,.22);border-radius:999px}
+    #side::-webkit-scrollbar-thumb:hover{background:rgba(110,231,255,.42)}
+    .panel{padding:13px}
+    .panel h3{font-size:16px;font-weight:700;margin-bottom:9px}
+    .muted{color:var(--muted);font-size:13px;line-height:1.55}
+    .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+    .cardMini{padding:10px 11px;border-radius:16px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08)}
+    .cardMini .k{font-size:11px;color:var(--muted)}
+    .cardMini .v{font-size:20px;font-weight:800;margin-top:2px}
+    .section{display:flex;flex-direction:column;gap:9px}
+    .towerBtn,.mapBtn{width:100%;text-align:left;padding:11px 12px;border-radius:16px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);color:var(--text);transition:.15s}
+    .towerBtn:hover,.mapBtn:hover{transform:translateY(-1px);background:rgba(255,255,255,.10)}
+    .active{background:rgba(110,231,255,.12)!important;border-color:rgba(110,231,255,.34)!important}
+    .row{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+    .tag{padding:2px 7px;border-radius:999px;background:rgba(255,255,255,.08);font-size:11px;color:#f5fbff;white-space:nowrap}
+    .footerTip{color:var(--muted);font-size:12px;line-height:1.6;margin-top:4px}
+    .progress{height:8px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:8px}
+    .progress>i{display:block;height:100%;background:linear-gradient(90deg,var(--cyan),var(--violet));border-radius:inherit;transition:width .3s}
+    .notice{padding:10px 13px;border-radius:16px;background:linear-gradient(135deg,rgba(110,231,255,.14),rgba(179,140,255,.12));border:1px solid rgba(255,255,255,.10);line-height:1.6;font-size:13px;transition:border-color .3s}
+    @keyframes msgFlash{0%{border-color:rgba(110,231,255,.7);background:linear-gradient(135deg,rgba(110,231,255,.28),rgba(179,140,255,.22))}100%{border-color:rgba(255,255,255,.10);background:linear-gradient(135deg,rgba(110,231,255,.14),rgba(179,140,255,.12))}}
+    .msgFlash{animation:msgFlash .6s ease}
+
+    /* ── Base HP bar in sidebar ── */
+    .baseBar{height:10px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:6px}
+    .baseBarFill{height:100%;border-radius:inherit;transition:width .4s}
+
+    /* ── Overlay ── */
+    #overlay{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(5,10,18,0);opacity:0;pointer-events:none;transition:opacity .22s ease,background-color .22s ease;backdrop-filter:blur(0px);-webkit-backdrop-filter:blur(0px)}
+    #overlay.show{opacity:1;pointer-events:auto;background:rgba(5,10,18,.36);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+    .overlayCard{width:min(1100px,100%);max-height:min(92vh,1000px);overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;border-radius:26px;background:rgba(8,16,28,.6);border:1px solid rgba(255,255,255,.12);box-shadow:0 30px 100px rgba(0,0,0,.55);backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);transform:scale(.94) translateY(14px);opacity:0;transition:transform .28s cubic-bezier(.16,1,.3,1),opacity .22s ease}
+    #overlay.show .overlayCard{transform:scale(1) translateY(0);opacity:1}
+    .overlayCard::-webkit-scrollbar{width:4px}
+    .overlayCard::-webkit-scrollbar-track{background:transparent}
+    .overlayCard::-webkit-scrollbar-thumb{background:rgba(110,231,255,.22);border-radius:999px}
+    .overlayCard::-webkit-scrollbar-thumb:hover{background:rgba(110,231,255,.42)}
+    .overlayHead{position:sticky;top:0;background:linear-gradient(180deg,rgba(8,16,28,.95),rgba(8,16,28,.70));border-bottom:1px solid rgba(255,255,255,.10);padding:13px 15px;display:flex;justify-content:space-between;align-items:center;gap:12px;z-index:1;border-radius:26px 26px 0 0}
+    .overlayBody{padding:15px}
+    .overlayGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    @media(max-width:760px){.overlayGrid{grid-template-columns:1fr}}
+    .bigCard{padding:15px;border-radius:20px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10)}
+    .techWrap{position:relative;border-radius:22px;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;background:radial-gradient(ellipse at 50% 0%,rgba(110,231,255,.07),transparent 60%),rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08)}
+    .techSkillBadgeLayer{position:sticky;top:10px;left:10px;height:0;z-index:6;pointer-events:none}
+    .techSkillBadge{display:inline-block;pointer-events:auto;padding:7px 13px;border-radius:999px;background:rgba(8,16,28,.86);border:1px solid rgba(110,231,255,.35);box-shadow:0 8px 22px rgba(0,0,0,.4);backdrop-filter:blur(10px);font-size:12.5px;color:#d8f8ff;white-space:nowrap}
+    .techSkillBadge b{color:var(--cyan);font-size:14px}
+    .techWrap::-webkit-scrollbar{width:4px;height:4px}
+    .techWrap::-webkit-scrollbar-track{background:transparent}
+    .techWrap::-webkit-scrollbar-thumb{background:rgba(110,231,255,.22);border-radius:999px}
+    .techWrap::-webkit-scrollbar-thumb:hover{background:rgba(110,231,255,.42)}
+    .techInner{position:relative}
+    .techSvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+    .techNode{position:absolute;width:150px;transform:translate(-50%,-50%);padding:10px 11px;border-radius:16px;background:rgba(12,20,34,.82);border:1px solid rgba(255,255,255,.14);color:var(--text);backdrop-filter:blur(18px);text-align:left;box-shadow:0 6px 20px rgba(0,0,0,.3);transition:.15s}
+    .techNode:hover{background:rgba(255,255,255,.10);transform:translate(-50%,-50%) translateY(-2px)}
+    .techNode.maxed{border-color:rgba(125,255,187,.5);box-shadow:0 0 0 1px rgba(125,255,187,.15) inset,0 6px 20px rgba(0,0,0,.3)}
+    .techNode.root{border-color:rgba(255,208,122,.55)}
+    @keyframes techPulse{0%{transform:translate(-50%,-50%) scale(1);box-shadow:0 0 0 0 rgba(125,255,187,.55),0 6px 20px rgba(0,0,0,.3)}40%{transform:translate(-50%,-50%) scale(1.08);box-shadow:0 0 0 14px rgba(125,255,187,0),0 6px 20px rgba(0,0,0,.3)}100%{transform:translate(-50%,-50%) scale(1);box-shadow:0 0 0 0 rgba(125,255,187,0),0 6px 20px rgba(0,0,0,.3)}}
+    .techNode.techPulse{animation:techPulse .55s ease-out}
+    .techNode .t{display:flex;justify-content:space-between;gap:7px;align-items:center;font-weight:700;font-size:13px}
+    .techNode .d{margin-top:4px;font-size:10.5px;color:var(--muted);line-height:1.4}
+    .techNode .c{margin-top:6px;font-size:10.5px;color:#d8f8ff}
+    .techNode .ic{font-size:14px;margin-right:3px}
+    .locked{opacity:.4;filter:grayscale(.4)}
+
+    /* ── Mod overlay ── */
+    .modDropZone{border:2px dashed rgba(110,231,255,.32);border-radius:20px;padding:34px 20px;text-align:center;color:var(--muted);cursor:pointer;transition:.2s;background:rgba(110,231,255,.04);position:relative}
+    .modDropZone:hover,.modDropZone.drag{border-color:var(--cyan);background:rgba(110,231,255,.10);color:var(--text)}
+    .modDropZone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+    .modCard{padding:13px;border-radius:18px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.10);display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+    .modCard.modOn{background:rgba(110,231,255,.08);border-color:rgba(110,231,255,.26)}
+    .modInfo{flex:1;min-width:0}
+    .modName{font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .modBadge{font-size:11px;padding:2px 7px;border-radius:999px;background:rgba(255,255,255,.08);color:var(--muted)}
+    .modBadge.on{background:rgba(110,231,255,.20);color:var(--cyan)}
+    .modDesc{font-size:12px;color:var(--muted);margin-top:5px;line-height:1.5}
+    .modMeta{font-size:11px;color:rgba(255,255,255,.3);margin-top:4px}
+    .modToggle{padding:8px 13px;border-radius:12px;font-size:13px;font-weight:700;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.07);color:var(--text);cursor:pointer;white-space:nowrap;transition:.14s;flex-shrink:0}
+    .modToggle:hover{background:rgba(255,255,255,.13)}
+    .modToggle.on{background:linear-gradient(135deg,rgba(110,231,255,.28),rgba(125,255,187,.18));border-color:rgba(110,231,255,.36);color:var(--cyan)}
+    .modRemove{padding:6px 10px;border-radius:10px;font-size:12px;border:1px solid rgba(255,80,80,.2);background:rgba(255,80,80,.07);color:var(--rose);cursor:pointer;margin-top:6px;transition:.14s}
+    .modRemove:hover{background:rgba(255,80,80,.15)}
+
+    /* ── Monster codex ── */
+    .codexCard{padding:13px;border-radius:18px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.10);display:flex;flex-direction:column}
+    .codexCard.boss{background:linear-gradient(180deg,rgba(255,150,70,.09),rgba(255,255,255,.04));border-color:rgba(255,160,80,.30)}
+    .codexHead{display:flex;align-items:center;gap:8px;font-size:15px;flex-wrap:wrap}
+    .codexHead strong{font-size:15px}
+    .codexDot{width:12px;height:12px;border-radius:50%;flex:none;border:1px solid rgba(255,255,255,.5)}
+    .codexStats{display:flex;flex-wrap:wrap;gap:5px 14px;margin-top:9px;font-size:11.5px;color:var(--muted)}
+    .codexStats b{color:#eaf6ff;font-weight:700}
+    .codexDesc{margin-top:8px;font-size:12px;color:var(--muted);line-height:1.65}
+    .codexCounter{margin-top:auto;padding-top:8px;font-size:11.5px;color:#c4ebff;line-height:1.55}
+    .codexCounter:before{content:'▸ ';color:var(--cyan)}
+    .codexKills{font-size:11px;color:rgba(255,255,255,.38);margin-top:5px}
+    .resumeHero{display:flex;align-items:center;gap:14px;padding:14px;border-radius:18px;background:linear-gradient(135deg,rgba(110,231,255,.12),rgba(179,140,255,.10));border:1px solid rgba(110,231,255,.22);margin-bottom:12px}
+    .resumeHero .ic{font-size:30px}
+    .resumeHero b{font-size:16px}
+
+    /* ── Build wheel（点击空地弹出的半圆建造盘） ── */
+    .buildWheel{position:absolute;left:0;top:0;width:0;height:0;z-index:14;opacity:0;pointer-events:none;transition:opacity .16s ease}
+    .buildWheel.show{opacity:1;pointer-events:auto}
+    .wheelDisc{position:absolute;border-radius:50%;pointer-events:none;
+      background:radial-gradient(circle at 50% 50%,rgba(6,14,26,.94) 0%,rgba(8,18,32,.82) 52%,rgba(10,22,38,.42) 72%,rgba(10,22,38,0) 100%);
+      border:1px solid rgba(110,231,255,.22);box-shadow:0 18px 60px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.05) inset;
+      backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px)}
+    .wheelDisc.up{clip-path:inset(0 0 50% 0)}
+    .wheelDisc.down{clip-path:inset(50% 0 0 0)}
+    .wheelArc{position:absolute;border-radius:50%;pointer-events:none;border:1px dashed rgba(110,231,255,.24)}
+    .wheelArc.up{clip-path:inset(0 0 50% 0)}
+    .wheelArc.down{clip-path:inset(50% 0 0 0)}
+    @keyframes wheelPop{0%{transform:translate(-50%,-50%) scale(.55);opacity:.2}70%{transform:translate(-50%,-50%) scale(1.06);opacity:1}100%{transform:translate(-50%,-50%) scale(1)}}
+    .wheelItem{position:absolute;width:58px;height:58px;border-radius:50%;transform:translate(-50%,-50%);
+      display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0;
+      background:rgba(8,17,30,.92);border:1.6px solid rgba(255,255,255,.18);color:var(--text);
+      box-shadow:0 8px 24px rgba(0,0,0,.5);animation:wheelPop .18s cubic-bezier(.34,1.56,.64,1) both;
+      transition:transform .1s ease,background .1s ease,box-shadow .1s ease}
+    .wheelItem:active{transform:translate(-50%,-50%) scale(.9)}
+    .wheelItem.poor{opacity:.42}
+    .wheelItem .wiIcon{font-size:19px;line-height:1.05}
+    .wheelItem .wiName{font-size:10.5px;font-weight:800;line-height:1.15;letter-spacing:.2px}
+    .wheelItem .wiCost{font-size:10px;line-height:1.1;color:var(--amber)}
+    .wheelItem.poor .wiCost{color:var(--rose);text-decoration:line-through}
+    .wheelClose{position:absolute;width:38px;height:38px;border-radius:50%;transform:translate(-50%,-50%);
+      background:rgba(8,15,26,.94);border:1px solid rgba(255,255,255,.22);color:#cfe9ff;font-size:16px;
+      display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(0,0,0,.45)}
+    .wheelClose:active{transform:translate(-50%,-50%) scale(.9)}
+    .wheelHint{position:absolute;left:50%;transform:translate(-50%,0);top:26px;white-space:nowrap;font-size:11px;
+      color:rgba(213,238,255,.72);pointer-events:none;text-shadow:0 1px 6px rgba(0,0,0,.7)}
+
+    /* ── Tower info cards（右侧炮种说明，不再可点选） ── */
+    .towerCard{padding:11px 12px;border-radius:16px;display:flex;gap:10px;align-items:flex-start;
+      background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09)}
+    .towerCard .ti{width:36px;height:36px;flex:none;border-radius:12px;display:flex;align-items:center;justify-content:center;
+      font-size:19px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14)}
+    .towerCard .tbody{flex:1;min-width:0}
+    .towerCard .row{align-items:center}
+    .towerCard .foot{font-size:11.5px;color:var(--muted);margin-top:4px;line-height:1.5}
+
+    .sideToggle{display:none}
+    .sideScrim{display:none}
+
+    /* ── Small-screen drawer for the sidebar ── */
+    @media(max-width:1100px){
+      #app{grid-template-columns:minmax(0,1fr)}
+      .sideToggle{display:inline-flex}
+      #side{display:none;position:fixed;right:8px;top:66px;bottom:8px;width:min(92vw,380px);z-index:41;
+        padding:10px;border-radius:20px;background:rgba(6,12,22,.92);border:1px solid var(--line);
+        box-shadow:0 24px 70px rgba(0,0,0,.6);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+      #app.sideOpen #side{display:flex}
+      #app.sideOpen .sideScrim{display:block;position:fixed;inset:0;z-index:40;background:rgba(3,8,14,.45)}
+    }
+    @media (pointer:coarse){
+      .btn{padding:11px 15px;min-height:44px}
+      .btn.small{min-height:40px}
+      .towerBtn,.mapBtn{min-height:44px}
+      .chips .chip{font-size:11px;padding:6px 9px}
+      .wheelItem{width:62px;height:62px}
+      .wheelItem .wiIcon{font-size:21px}
+      .wheelItem .wiName{font-size:11.5px}
+      .wheelClose{width:44px;height:44px}
+    }
+    @media(max-width:760px){
+      #app{padding:8px;gap:8px}
+      .topbar{padding:10px 11px}
+      .stat{min-width:64px;padding:7px 9px}
+      .stat b{font-size:17px}
+      .hideOnSmall{display:none!important}
+      .chips{left:8px;bottom:8px;gap:6px}
+      .wheelItem{width:52px!important;height:52px!important}
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="gameWrap">
+    <div class="topbar panel">
+      <div>
+        <div class="title">星海防线 · 网页版塔防</div>
+        <div class="sub">5 种敌人 · 每 5 波 Boss · 点击空地弹出建造盘 · 护甲穿透 · 科技树 · 模组地图</div>
+      </div>
+      <div class="statRow" id="statsTop"></div>
+      <div class="btnRow">
+        <button class="btn sideToggle" id="sideToggleBtn">☰ 面板</button>
+        <button class="btn" id="pauseBtn">暂停</button>
+        <button class="btn" id="speedBtn">倍速 ×1</button>
+        <button class="btn" id="soundBtn">音效：关</button>
+        <button class="btn primary" id="startBtn">开始下一波</button>
+        <button class="btn" id="openCodexBtn">📖 图鉴</button>
+        <button class="btn hideOnSmall" id="openTechBtn">科技树</button>
+        <button class="btn hideOnSmall" id="openModBtn">🧩 模组</button>
+        <a class="btn hideOnSmall" id="openEditorBtn" href="./build.html" target="_blank" rel="noopener">🗺 编辑器</a>
+        <button class="btn danger" id="resetBtn">重开</button>
+      </div>
+    </div>
+    <div id="stageCard" class="panel">
+      <div id="canvasBox">
+        <canvas id="gameCanvas"></canvas>
+        <div class="chips">
+          <div class="chip">点按地图空地 → 半圆建造盘选炮台</div>
+          <div class="chip">点按炮台 → 升级/出售 · 点按终点🏰升级基地</div>
+          <div class="chip">点按敌人 → 全炮台集火</div>
+          <div class="chip">手指/鼠标拖动地图平移（地图超出屏幕时）</div>
+          <div class="chip">空格：下一波 · A：自动开波 · P：暂停</div>
+        </div>
+        <div class="waveBanner" id="waveBanner"></div>
+        <div id="gameMiniMap" class="gameMiniMap" style="display:none">
+          <div class="miniHeader" id="miniHeaderDrag">⋮⋮ 小地图（拖动移动 · 右下角拖动缩放）</div>
+          <canvas id="miniMapCanvas"></canvas>
+          <div class="miniResizeHandle" id="miniResizeHandle"></div>
+        </div>
+      </div>
+      <div id="buildWheel" class="buildWheel">
+        <div class="wheelDisc up" id="wheelDisc"></div>
+        <div class="wheelArc up" id="wheelArc"></div>
+        <div id="wheelItems"></div>
+        <button class="wheelClose" id="wheelClose" style="left:0;top:0" title="取消建造">✕</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="sideScrim" class="sideScrim"></div>
+  <aside id="side">
+    <div class="panel">
+      <h3>状态</h3>
+      <div class="grid2" id="statusGrid"></div>
+      <div class="notice" id="messageBox" style="margin-top:10px"></div>
+    </div>
+
+    <div class="panel section">
+      <div class="row"><h3 style="margin:0">🌊 波次</h3><span class="tag" id="waveTag">准备中</span></div>
+      <div id="wavePreview"></div>
+      <div class="footerTip" id="waveStatLine" style="margin-top:6px"></div>
+      <div class="progress"><i id="waveProgress" style="width:0%"></i></div>
+      <button class="btn small" id="autoWaveBtn" style="width:100%;margin-top:9px">自动下一波：关</button>
+    </div>
+
+    <div class="panel section">
+      <h3>🏰 基地</h3>
+      <div id="baseInfo"></div>
+    </div>
+
+    <div class="panel section">
+      <h3>地图</h3>
+      <div id="mapList"></div>
+    </div>
+
+    <div class="panel section">
+      <h3>塔种图鉴</h3>
+      <div class="footerTip" style="margin-top:0;margin-bottom:2px">建造方式：点按地图上的<strong>空地</strong>，会弹出半圆建造盘，选择要建造的炮台即可。下面的列表仅作炮台资料介绍。</div>
+      <div id="towerList" style="gap:8px"></div>
+    </div>
+
+    <div class="panel section">
+      <h3>📖 怪物图鉴</h3>
+      <div class="footerTip" id="codexSummary" style="margin-top:0">收录所有敌人与 Boss 的资料。</div>
+      <button class="btn" id="openCodexBtnSide" style="width:100%;margin-top:6px">查看怪物资料与击杀记录</button>
+    </div>
+
+    <div class="panel section">
+      <h3>科技树</h3>
+      <button class="btn primary" id="openTechBtnSide" style="width:100%">打开科技树界面</button>
+      <div class="footerTip">科技树可无限升级，点击打开第三层界面。</div>
+    </div>
+
+    <div class="panel section">
+      <h3>💾 存档</h3>
+      <div class="footerTip" id="autoSaveInfo" style="margin-top:0">自动保存已开启。</div>
+      <button class="btn" id="autoSaveToggle" style="width:100%;margin-top:6px">自动保存：开</button>
+      <button class="btn primary" id="loadAutoBtn" style="width:100%;margin-top:6px">▶ 载入自动存档</button>
+      <button class="btn" id="saveGameBtn" style="width:100%;margin-top:6px">💾 导出存档文件</button>
+      <button class="btn" id="loadGameBtn" style="width:100%;margin-top:6px">📂 读取存档文件</button>
+      <input type="file" id="loadGameInput" accept=".json,application/json" style="display:none">
+    </div>
+
+    <div class="panel section">
+      <h3>🧩 模组</h3>
+      <div id="modChips" style="display:flex;flex-wrap:wrap;gap:6px;min-height:18px"></div>
+      <button class="btn" id="openModBtnSide" style="width:100%;margin-top:4px">模组管理 / 拖入文件</button>
+      <a class="btn" href="./build.html" target="_blank" rel="noopener" style="width:100%;margin-top:6px;justify-content:center">🗺️ 打开地图编辑器</a>
+      <div class="footerTip">将 .js 模组文件拖入下方管理界面直接启用。点上方按钮可在新窗口打开配套的「地图编辑器」，创作自定义地图并在编辑器里直接试玩。</div>
+    </div>
+  </aside>
+</div>
+
+<div id="overlay">
+  <div class="overlayCard">
+    <div class="overlayHead">
+      <div>
+        <div id="overlayTitle" style="font-weight:800;font-size:17px">界面</div>
+        <div id="overlaySub" class="muted" style="margin-top:2px"></div>
+      </div>
+      <button class="btn" id="overlayCloseBtn">关闭</button>
+    </div>
+    <div class="overlayBody" id="overlayBody"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+/* ═══════════════════════════════════════════════════════════
+   MOD SYSTEM  —  drag .js files into the mod panel to load
+   ═══════════════════════════════════════════════════════════ */
+window.__mods = [];      // loaded mod objects
+window.__modErrors = []; // load error log
+let MOD_API = null;      // built once all game data/functions exist — see bottom of script
+
+function callHook(hookName, ...args) {
+  for (const mod of window.__mods) {
+    if (!state.activeMods.has(mod.id)) continue;
+    const fn = mod.hooks?.[hookName];
+    if (typeof fn === 'function') {
+      try { fn(state, ...args); }
+      catch(e) { console.warn(`[MOD:${mod.id}] ${hookName}:`, e); }
+    }
+  }
+}
+
+function loadModFromText(filename, text) {
+  try {
+    // Mod file must evaluate to an object literal: ({id:'...', name:'...', hooks:{...}, register(api,modId){...}})
+    const mod = new Function('"use strict"; return (' + text + ')')();
+    if (!mod || typeof mod !== 'object') throw new Error('模组文件需要返回一个对象');
+    if (!mod.id) throw new Error('模组缺少 id 字段');
+    if (!mod.name) throw new Error('模组缺少 name 字段');
+    mod._filename = filename;
+    const existing = window.__mods.findIndex(m => m.id === mod.id);
+    if (existing >= 0) window.__mods[existing] = mod;
+    else window.__mods.push(mod);
+    // Content registration (towers/maps/bosses/techs) runs once at load time, regardless of active state
+    if (typeof mod.register === 'function') {
+      try { mod.register(MOD_API, mod.id); }
+      catch(e) { console.warn(`[MOD:${mod.id}] register() error:`, e); window.__modErrors.push({filename,error:`register() 失败: ${e.message}`}); }
+    }
+    // auto-fire onEnable if already active
+    if (state.activeMods.has(mod.id) && typeof mod.hooks?.onEnable === 'function') {
+      mod.hooks.onEnable(state);
+    }
+    return { ok: true, mod };
+  } catch(e) {
+    window.__modErrors.push({ filename, error: e.message });
+    return { ok: false, err: e.message };
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CONSTANTS
+   ═══════════════════════════════════════════════════════════ */
+let GRID_W = 12, GRID_H = 9; // mutable — custom maps can override via gridW/gridH
+function applyMapGrid(){ const mp=currentMap(); GRID_W=mp.gridW||12; GRID_H=mp.gridH||9; }
+
+/* ── Game balance defaults ──
+   Central home for the game's core tuning numbers. Referenced from the
+   initial state, resetGame(), save/load, and the mod map defaults so each
+   only ever needs to change in one place instead of drifting independently.
+   NOTE: distances are measured in grid cells, and enemy speed is cells/second,
+   so a map stays identical on any screen size. */
+const GAME_BALANCE = {
+  startingGold: 280,
+  autoWaveDelay: 5,
+  defaultBase: { hp:520, maxHp:520, level:1, cooldown:0, damage:55, range:2.6, fireRate:0.8 },
+  wave: {
+    countBase:5, countGrowth:1.7, maxCount:64,
+    speedBase:0.62, speedGrowth:0.014, speedCap:1.75,
+    hpBase:46, hpLinear:15, hpQuad:1.85,
+  },
+};
+
+/* ── Maps ── */
+const MAPS = [
+  {
+    id:'forest', name:'幽林前线', bossName:'古树巨卫',
+    desc:'弯折多，适合炮塔与冰塔。',
+    theme:['#061420','#0e2035','#1c3450'],
+    roadFill:'rgba(72,90,68,.85)', roadEdge:'rgba(96,130,88,.4)',
+    grassA:'rgba(12,24,36,.92)', grassB:'rgba(10,20,30,.92)',
+    glow:'rgba(82,230,140,.20)', accentColor:'#4ade80',
+    deco:'forest', hpMul:1,
+    path:[[0,3],[1,3],[2,3],[3,3],[3,2],[3,1],[4,1],[5,1],[6,1],[6,2],[6,3],[6,4],[5,4],[4,4],[3,4],[2,4],[2,5],[2,6],[2,7],[3,7],[4,7],[5,7],[6,7],[7,7],[8,7],[9,7],[10,7],[10,6],[10,5],[10,4],[10,3],[11,3]]
+  },
+  {
+    id:'desert', name:'沙脊裂谷', bossName:'沙暴统领',
+    desc:'开阔地形，激光塔很强。',
+    theme:['#1a120e','#2b1a12','#4a2e18'],
+    roadFill:'rgba(110,88,60,.85)', roadEdge:'rgba(170,130,80,.4)',
+    grassA:'rgba(32,20,12,.92)', grassB:'rgba(26,16,10,.92)',
+    glow:'rgba(255,190,80,.22)', accentColor:'#fbbf24',
+    deco:'desert', hpMul:1.12,
+    path:[[0,1],[1,1],[2,1],[3,1],[4,1],[5,1],[6,1],[6,2],[6,3],[6,4],[7,4],[8,4],[9,4],[9,3],[9,2],[10,2],[11,2],[11,3],[11,4],[11,5],[10,5],[9,5],[8,5],[7,5],[6,5],[5,5],[4,5],[3,5],[2,5],[2,6],[2,7],[3,7],[4,7],[5,7],[6,7],[7,7],[8,7],[9,7],[10,7],[11,7]]
+  },
+  {
+    id:'ice', name:'极光冰原', bossName:'霜脊王兽',
+    desc:'路径极长，适合消耗流打法。',
+    theme:['#061522','#0f2640','#1e4470'],
+    roadFill:'rgba(80,110,140,.85)', roadEdge:'rgba(120,180,220,.4)',
+    grassA:'rgba(8,20,38,.92)', grassB:'rgba(6,16,32,.92)',
+    glow:'rgba(100,220,255,.20)', accentColor:'#67e8f9',
+    deco:'ice', hpMul:1.06,
+    path:[[0,8],[1,8],[2,8],[3,8],[4,8],[5,8],[6,8],[7,8],[8,8],[9,8],[10,8],[10,7],[10,6],[10,5],[10,4],[9,4],[8,4],[7,4],[7,3],[7,2],[7,1],[6,1],[5,1],[4,1],[3,1],[3,2],[3,3],[3,4],[3,5],[4,5],[5,5],[6,5],[6,6],[6,7],[5,7],[4,7],[3,7],[2,7],[1,7],[1,6],[1,5],[1,4],[1,3],[1,2],[1,1],[0,1]]
+  },
+  {
+    id:'volcano', name:'熔岩深渊', bossName:'炎魔领主',
+    desc:'地形危险，敌人更强但奖励更高。',
+    theme:['#1a0a08','#2e1210','#5a2018'],
+    roadFill:'rgba(140,60,30,.85)', roadEdge:'rgba(220,100,40,.4)',
+    grassA:'rgba(30,10,8,.92)', grassB:'rgba(24,8,6,.92)',
+    glow:'rgba(255,80,30,.25)', accentColor:'#f97316',
+    deco:'volcano', hpMul:1.28,
+    path:[[0,4],[1,4],[2,4],[2,3],[2,2],[3,2],[4,2],[5,2],[5,3],[5,4],[5,5],[5,6],[6,6],[7,6],[8,6],[8,5],[8,4],[8,3],[8,2],[9,2],[10,2],[10,3],[10,4],[10,5],[10,6],[10,7],[9,7],[8,7],[7,7],[6,7],[5,7],[4,7],[3,7],[2,7],[1,7],[1,6],[1,5],[0,5]]
+  },
+];
+
+/* ── Tower types ──
+   baseRange / splash are in grid cells; baseFireRate is the SECONDS between
+   shots (lower = faster). armorPen ignores that fraction of a target's armor. */
+const TOWER_TYPES = {
+  cannon:    { name:'炮塔',   cost:70,   baseRange:2.35, baseDamage:20, baseFireRate:0.85, projectileSpeed:9,  splash:1.0,  slow:0,    armorPen:0,    color:[255,176,92],  icon:'💥', desc:'小范围爆炸，清小怪的主力。' },
+  frost:     { name:'冰塔',   cost:85,   baseRange:2.85, baseDamage:9,  baseFireRate:0.85, projectileSpeed:8,  splash:0,    slow:0.45, armorPen:0,    color:[108,228,255], icon:'❄️', desc:'减速控场，为其它炮台争取输出时间。' },
+  laser:     { name:'激光塔', cost:120,  baseRange:3.2,  baseDamage:30, baseFireRate:1.3,  projectileSpeed:13, splash:0,    slow:0,    armorPen:0.65, pierce:2, color:[224,97,255], icon:'🔺', desc:'穿透3个目标并无视65%护甲，克制重装。' },
+  mortar:    { name:'迫击炮', cost:150,  baseRange:3.6,  baseDamage:46, baseFireRate:2.2,  projectileSpeed:6,  splash:1.85, slow:0,    armorPen:0,    color:[255,220,80],  icon:'🧨', desc:'超大范围爆炸，成群的敌人越多越强。' },
+  superLaser:{ name:'激光炮', cost:5000, baseRange:99,   baseDamage:550,baseFireRate:2.0,  projectileSpeed:999,splash:0.7,  slow:0,    armorPen:1,    color:[0,240,255],   icon:'⚡',
+               desc:'超级武器，占地2×2，全图自动攻击，不可升级。', size:2, noUpgrade:true },
+};
+
+/* ── Boss types ── */
+const BOSS_TYPES = [
+  { id:'guardian', name:'铁甲卫兵', color:[180,140,80],  hpMul:1.35, speedMul:0.78, armor:0.18, summonRate:6.0, minions:2, rageMinions:3, icon:'🛡',
+    desc:'重甲护卫型 Boss，移动缓慢但护甲厚实，会定时召唤小怪消耗你的火力。',
+    counter:'激光塔无视大部分护甲，配合冰塔拖慢后可稳定击杀。' },
+  { id:'phantom',  name:'疾风幽魂', color:[80,230,190],  hpMul:0.55, speedMul:2.2,  armor:0.05, summonRate:3.2, minions:3, rageMinions:5, icon:'💨',
+    desc:'血量最低但速度极快，稍不留神就会冲过防线直取基地。',
+    counter:'冰塔是核心解法；在路径后半段补炮台，别只堆在入口。' },
+  { id:'warlord',  name:'虚空领主', color:[190,80,255],  hpMul:2.0,  speedMul:0.95, armor:0.22, summonRate:4.4, minions:3, rageMinions:5, icon:'👑', doubleReward:true,
+    desc:'属性均衡的双倍奖励 Boss，召唤频繁，适合用高爆发阵容应对。',
+    counter:'优先集火本体（点击 Boss 设为优先目标），别被召唤物分散火力。' },
+  { id:'swarm',    name:'蜂群母舰', color:[255,160,60],  hpMul:0.7,  speedMul:0.85, armor:0.1,  summonRate:2.2, minions:5, rageMinions:8, icon:'🐝',
+    desc:'本体较弱，但会持续放出大量虫群，非常考验范围清怪能力。',
+    counter:'迫击炮 + 炮塔的爆炸覆盖，配合冰塔减速让虫群挤在一起。' },
+  { id:'titan',    name:'泰坦领主', color:[255,80,120],  hpMul:3.0,  speedMul:0.65, armor:0.3,  summonRate:3.8, minions:3, rageMinions:5, icon:'💥', doubleReward:true,
+    desc:'高血量、高护甲的双倍奖励 Boss，推进缓慢但极难快速击杀。',
+    counter:'激光塔堆叠穿甲与「巨兽克制」科技，配合基地输出。' },
+  { id:'shadow',   name:'暗影刺客', color:[120,80,200],  hpMul:0.65, speedMul:1.7,  armor:0.08, summonRate:3.5, minions:4, rageMinions:6, icon:'🌑',
+    desc:'高速、低护甲，半血狂暴后移动更快，容易漏防。',
+    counter:'冰塔全程覆盖路径，激光塔利用高攻速补伤害。' },
+  { id:'colossus', name:'混沌巨神', color:[255,120,60],  hpMul:4.2,  speedMul:0.55, armor:0.38, summonRate:3.0, minions:4, rageMinions:6, icon:'🗿', doubleReward:true,
+    desc:'后期最强 Boss：超高血量与 38% 护甲，移动极慢但几乎无法被普通炮塔撼动。',
+    counter:'必须提前准备穿甲激光与「巨兽克制」科技，并留足金币升级。' },
+];
+
+/* ── Enemy types ──
+   unlock = first wave the type can appear; weight = spawn probability weight.
+   armor is a 0..1 damage reduction (the laser tower pierces part of it). */
+const ENEMY_TYPES = [
+  { id:'grunt',    name:'步卒',   hpMul:1,    speedMul:1,   radius:14, color:[255,127,103], armor:0,    rewardMul:1,   dmgMul:1,   unlock:1,  weight:10, icon:'',
+    desc:'最常见的杂兵，数量多、无护甲，用来消耗弹药与测试防线的密度。',
+    counter:'任意炮台都能处理；前期靠炮塔溅射即可成片清理。' },
+  { id:'runner',   name:'疾行者', hpMul:.62,  speedMul:1.5, radius:12, color:[255,214,102], armor:0,    rewardMul:.9,  dmgMul:.8,  unlock:3,  weight:7,  icon:'',
+    desc:'移动速度约为步卒的 1.5 倍，血量较低，容易从火力空档中穿过。',
+    counter:'冰塔减速；把炮台放在长直路段而不是只守入口。' },
+  { id:'brute',    name:'重装兽', hpMul:2.5,  speedMul:.72, radius:18, color:[196,132,252], armor:.22,  rewardMul:1.7, dmgMul:1.7, unlock:6,  weight:5,  icon:'🦾',
+    desc:'披着装甲的重型单位，血量约为步卒的 2.5 倍，并减免 22% 伤害。',
+    counter:'激光塔穿甲效率最高；迫击炮也能靠单发高伤硬啃。' },
+  { id:'shield',   name:'护盾机', hpMul:1.8,  speedMul:.88, radius:16, color:[110,231,255], armor:.42,  rewardMul:1.6, dmgMul:1.3, unlock:9,  weight:4,  icon:'🔷', slowResist:.35,
+    desc:'高护甲单位，减免 42% 伤害，并对减速有一定抗性。',
+    counter:'非激光塔伤害会被大幅削弱；优先用激光塔与「连锁目标」科技。' },
+  { id:'swarmling',name:'虫群',   hpMul:.34,  speedMul:1.3, radius:9,  color:[251,113,133], armor:0,    rewardMul:.5,  dmgMul:.55, unlock:12, weight:9,  icon:'',
+    desc:'体型小、数量多、移动快，单个很弱但成群时会迅速堆满路径。',
+    counter:'迫击炮与炮塔的范围伤害；冰塔可把虫群粘成一团。' },
+];
+
+/* ── Tech tree (pixel coordinates inside a 1040×1100 canvas, grows downward) ── */
+const TECHS = [
+  // Layer 0 — root
+  { id:'core', name:'核心供能', icon:'⚡', x:500, y:60,  req:[],                 max:999, base:1, desc:'解锁全局科技树的根基。',         eff:lv=>`全部火力 +${lv*4}%` },
+  // Layer 1 — three primary branches
+  { id:'pow',  name:'火力引擎', icon:'💥', x:200, y:220, req:['core'],           max:999, base:1, desc:'全局伤害提升。',                 eff:lv=>`全局伤害 +${lv*12}%` },
+  { id:'spd',  name:'冷却工艺', icon:'⏱️', x:500, y:220, req:['core'],           max:999, base:1, desc:'全局射速提升。',                 eff:lv=>`全局攻速 +${lv*10}%` },
+  { id:'rng',  name:'观测模块', icon:'🔭', x:800, y:220, req:['core'],           max:999, base:1, desc:'全局射程提升。',                 eff:lv=>`全局射程 +${lv*8}%` },
+  // Layer 2 — branch specializations
+  { id:'eco',  name:'经济网络', icon:'💰', x:120, y:380, req:['pow'],            max:999, base:2, desc:'金币收益更高。',                 eff:lv=>`金币收益 +${lv*15}%` },
+  { id:'cri',  name:'爆破研究', icon:'🎯', x:310, y:380, req:['pow'],            max:999, base:2, desc:'炮塔溅射与暴击率提升。',         eff:lv=>`爆炸 +${lv*6}% · 暴击 +${Math.min(45,lv*7)}%` },
+  { id:'fro',  name:'冰霜脉冲', icon:'❄️', x:500, y:380, req:['spd'],            max:999, base:2, desc:'冰塔减速更强。',                 eff:lv=>`减速强度 +${lv*5}%` },
+  { id:'over', name:'极速执行', icon:'🌀', x:690, y:380, req:['spd'],            max:999, base:2, desc:'塔的攻速额外提升。',             eff:lv=>`攻速额外 +${lv*4}%` },
+  { id:'fort', name:'基地强化', icon:'🏰', x:880, y:380, req:['rng'],            max:999, base:2, desc:'基地射程/伤害提升。',           eff:lv=>`基地战力 +${lv*8}%` },
+  // Layer 3 — deep specializations
+  { id:'link',      name:'连锁目标', icon:'⛓️', x:120, y:540, req:['eco'],            max:999, base:3, desc:'激光穿透更多目标。',           eff:lv=>`穿透/连锁 +${lv}` },
+  { id:'splash2',   name:'殉爆研究', icon:'💢', x:310, y:540, req:['cri'],            max:999, base:3, desc:'炮塔/迫击炮范围进一步扩大。',  eff:lv=>`额外爆炸范围 +${lv*5}%` },
+  { id:'frostnova', name:'冰霜新星', icon:'🌨️', x:500, y:540, req:['fro'],            max:999, base:3, desc:'冰塔减速效果更猛烈。',         eff:lv=>`减速加成 +${lv*8}%` },
+  { id:'haste',     name:'超频协议', icon:'🚀', x:690, y:540, req:['over'],           max:999, base:3, desc:'全体塔额外加速开火。',         eff:lv=>`超频攻速 +${lv*6}%` },
+  { id:'scope',     name:'精准校准', icon:'🔬', x:880, y:540, req:['fort'],           max:999, base:3, desc:'基地与塔射程进一步提升。',     eff:lv=>`额外射程 +${lv*5}%` },
+  // Layer 4 — convergence
+  { id:'res',       name:'应急储备', icon:'📦', x:150, y:700, req:['link','frostnova'],max:999, base:4, desc:'过波奖励更多金币。',           eff:lv=>`每波额外金币 +${lv*18}` },
+  { id:'boss',      name:'巨兽克制', icon:'👹', x:350, y:700, req:['splash2','frostnova'],max:999,base:4, desc:'对Boss伤害更高。',             eff:lv=>`Boss伤害 +${lv*10}%` },
+  { id:'overdrive', name:'武器超载', icon:'🔥', x:560, y:700, req:['haste'],          max:999, base:4, desc:'攻速与伤害同步提升。',         eff:lv=>`攻速 +${lv*5}% · 伤害 +${lv*3}%` },
+  { id:'regen',     name:'基地再生', icon:'💚', x:770, y:700, req:['fort'],           max:999, base:3, desc:'基地自动回血，越升越快。',      eff:lv=>`每秒回复 ${(Math.min(12,lv*0.4)).toFixed(1)}% 最大血量` },
+  { id:'turret',    name:'塔体强化', icon:'🛠️', x:930, y:700, req:['scope'],          max:999, base:4, desc:'塔的等级成长更快。',           eff:lv=>`等级成长 +${lv*1}%` },
+  // Layer 5 — ultimates
+  { id:'ultimate1', name:'终极核心', icon:'🌟', x:350, y:860, req:['res','boss'],     max:999, base:6, desc:'全方位战力飞跃。',             eff:lv=>`伤害/射程/攻速 +${lv*3}%` },
+  { id:'ultimate2', name:'全域过载', icon:'🌐', x:650, y:860, req:['overdrive','turret'],max:999,base:6, desc:'经济与基地同步强化。',         eff:lv=>`金币 +${lv*5}% · 基地 +${lv*5}%` },
+  // Layer 6 — capstone
+  { id:'omega',     name:'奇点协议', icon:'Ω',  x:500, y:1020,req:['ultimate1','ultimate2'],max:999,base:10,desc:'终极科技，全数值跃升。',     eff:lv=>`全属性额外 +${lv*2}%` },
+];
+
+/* ═══════════════════════════════════════════════════════════
+   STATE
+   ═══════════════════════════════════════════════════════════ */
+const state = {
+  stageId:'forest', wave:1, gold:GAME_BALANCE.startingGold, skillPoints:0,
+  skills:{}, selectedTowerType:'cannon', selectedTowerId:null,
+  towers:[], enemies:[], projectiles:[], particles:[], texts:[],
+  waveState:'ready', spawnQueue:[], spawnTimer:0,
+  wavePlan:null, waveTotal:0, waveSpawned:0, waveKilled:0, waveLeaked:0,
+  autoWave:false, autoTimer:0, time:0,
+  paused:false, gameOver:false, soundOn:false,
+  message:'点击开始下一波，守住基地。', shake:0,
+  hoverCell:null, mouse:{x:0,y:0,inside:false}, last:performance.now(), audioCtx:null,
+  gameSpeed:1, sfxLast:{}, baseFlash:0, towersRev:0,
+  codex:{ enemies:{}, bosses:{} },   // lifetime kill counts per species (persists across runs)
+  autoSave:true, autoSaveAvailable:true, lastAutoSave:0, resumePending:false,
+  _uiCache:{gold:null,hp:null,skillPoints:null,wave:null,enemyCount:null,waveTag:null},
+  board:{ x:0,y:0,w:0,h:0,cell:55 },
+  camera:{ x:0,y:0,needsCam:false,vx:0,vy:0 },
+  buildCell:null,     // [gx,gy] while the build wheel is open
+  miniMap:{ x:null,y:null,w:230,h:160 }, // x/y null = not yet placed (auto-position on first show)
+  overlayMode:'none',
+  activeMods: new Set(),
+  priorityTargetId: null,  // enemy ID marked by player click — all towers prioritize it
+  _justBoughtTechId: null, // sets a one-shot purchase-pulse animation on the tech tree node
+  // Base
+  base:{ ...GAME_BALANCE.defaultBase },
+};
+
+/* ═══════════════════════════════════════════════════════════
+   HELPERS
+   ═══════════════════════════════════════════════════════════ */
+const uid = () => Math.random().toString(36).slice(2)+Date.now().toString(36);
+const clamp = (n,a,b) => Math.max(a,Math.min(b,n));
+const currentMap = () => MAPS.find(m=>m.id===state.stageId)||MAPS[0];
+
+/* ── Path geometry ──
+   Cached in CELL units (center of each path cell) so it is independent of the
+   current canvas size. Enemies store their travelled distance `d` in cells,
+   which makes resizing / camera panning lossless. */
+let _pathCache={ id:null, pts:[], cum:[], len:1 };
+function getPathData(){
+  const mp=currentMap();
+  if(_pathCache.id!==mp.id){
+    const pts=mp.path.map(([x,y])=>({x:x+.5,y:y+.5}));
+    const cum=[0]; let len=0;
+    for(let i=1;i<pts.length;i++){
+      len+=Math.hypot(pts[i].x-pts[i-1].x,pts[i].y-pts[i-1].y);
+      cum.push(len);
+    }
+    _pathCache={ id:mp.id, pts, cum, len:Math.max(len,.001) };
+  }
+  return _pathCache;
+}
+/* Point at `d` cells along the path, plus the segment index and t within it. */
+function pointAtDistance(d){
+  const pd=getPathData(); const {pts,cum}=pd;
+  d=clamp(d,0,pd.len);
+  let lo=1,hi=cum.length-1;
+  while(lo<hi){ const mid=(lo+hi)>>1; if(cum[mid]<d) lo=mid+1; else hi=mid; }
+  const i=Math.max(1,lo);
+  const segLen=Math.max(cum[i]-cum[i-1],1e-6);
+  const t=clamp((d-cum[i-1])/segLen,0,1);
+  const a=pts[i-1], b=pts[i];
+  return { x:a.x+(b.x-a.x)*t, y:a.y+(b.y-a.y)*t, i, t };
+}
+
+let _pathPx={ key:'', pts:[] };
+function pathPoints(){
+  const pd=getPathData(); const b=state.board;
+  const key=pd.id+'|'+b.x+'|'+b.y+'|'+b.cell;
+  if(_pathPx.key!==key){
+    _pathPx={ key, pts:pd.pts.map(p=>({x:b.x+p.x*b.cell,y:b.y+p.y*b.cell})) };
+  }
+  return _pathPx.pts;
+}
+let _pathSetCache={ id:'', set:null };
+function pathSet(){
+  const id=currentMap().id;
+  if(_pathSetCache.id!==id) _pathSetCache={ id, set:new Set(currentMap().path.map(([x,y])=>`${x},${y}`)) };
+  return _pathSetCache.set;
+}
+const cellCenter = (x,y) => ({ x:state.board.x+x*state.board.cell+state.board.cell/2, y:state.board.y+y*state.board.cell+state.board.cell/2 });
+const dist = (a,b) => Math.hypot(a.x-b.x,a.y-b.y);
+const setMsg = msg => { state.message=msg; renderStatic(); };
+const aliveEnemies = () => state.enemies.filter(e=>e.alive);
+const mapEnemyHpMul = () => {
+  const mp=currentMap();
+  if(mp.hpMul!=null) return mp.hpMul;
+  const i=MAPS.indexOf(mp);
+  return [1,1.12,1.06,1.28][i] ?? 1;
+};
+/* Deterministic per-wave RNG (same plan for preview + actual spawning). */
+function rngFrom(seed){
+  let s=seed>>>0;
+  return ()=>{ s=(s*1664525+1013904223)>>>0; return s/4294967296; };
+}
+
+function basePosition(){ const mp=currentMap(), lc=mp.path[mp.path.length-1]; return cellCenter(lc[0],lc[1]); }
+
+/* ═══════════════════════════════════════════════════════════
+   AUDIO
+   ═══════════════════════════════════════════════════════════ */
+function ensureAudio(){
+  if(!state.audioCtx){ const AC=window.AudioContext||window.webkitAudioContext; if(!AC)return null; state.audioCtx=new AC(); }
+  if(state.audioCtx.state==='suspended') state.audioCtx.resume();
+  return state.audioCtx;
+}
+const SFX_MIN_GAP={shoot:.035,hit:.03,kill:.045,coin:.05,upgrade:.06,boss:.2,wave:.2,base_hit:.08,superLaser:.15,click:.03};
+function sfx(kind='click'){
+  if(!state.soundOn)return; const ac=ensureAudio(); if(!ac)return;
+  const now=ac.currentTime;
+  const gap=SFX_MIN_GAP[kind]??.03;
+  const last=state.sfxLast[kind]||-Infinity;
+  if(now-last<gap)return; // avoid overlapping bursts turning into distorted noise
+  state.sfxLast[kind]=now;
+  const tone=(freq,type='sine',dur=.08,gain=.06,sweep=0)=>{ const o=ac.createOscillator(),g=ac.createGain(); o.type=type; o.frequency.setValueAtTime(freq,now); if(sweep) o.frequency.exponentialRampToValueAtTime(Math.max(30,freq+sweep),now+dur); g.gain.setValueAtTime(.0001,now); g.gain.exponentialRampToValueAtTime(gain,now+.01); g.gain.exponentialRampToValueAtTime(.0001,now+dur); o.connect(g).connect(ac.destination); o.start(now); o.stop(now+dur+.03); };
+  if(kind==='shoot') tone(520,'triangle',.05,.05,120);
+  else if(kind==='hit') tone(160,'square',.05,.05,-40);
+  else if(kind==='kill'){ tone(220,'sawtooth',.12,.08,320); tone(440,'triangle',.08,.04,180); }
+  else if(kind==='boss'){ tone(92,'sawtooth',.28,.11,25); tone(58,'square',.36,.08,12); }
+  else if(kind==='wave'){ tone(330,'triangle',.08,.06,90); tone(660,'triangle',.11,.05,180); }
+  else if(kind==='upgrade'){ tone(440,'triangle',.08,.05,120); tone(880,'triangle',.07,.04,220); }
+  else if(kind==='coin'){ tone(880,'sine',.05,.05,160); tone(1200,'sine',.06,.04,140); }
+  else if(kind==='base_hit'){ tone(80,'square',.15,.10,-20); }
+  else if(kind==='superLaser'){ tone(120,'sawtooth',.22,.13,-60); tone(440,'sine',.28,.08,300); tone(1200,'triangle',.18,.05,500); }
+  else tone(420,'sine',.05,.03,40);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GAME ENTITIES
+   ═══════════════════════════════════════════════════════════ */
+function skillCost(lv,base){ return base+Math.floor(lv*.7); }
+function towerUpgradeCost(t){
+  const type=TOWER_TYPES[t.type]; if(!type) return 0;
+  return Math.floor((type.cost||100)*(0.55+t.level*0.45));
+}
+function towerSellValue(t){
+  const type=TOWER_TYPES[t.type]; if(!type) return 0;
+  const invested=t.invested??(type.cost||100);
+  return Math.floor(invested*0.6);
+}
+function makeTower(type,x,y){
+  const def=TOWER_TYPES[type]||TOWER_TYPES.cannon;
+  const base={id:uid(),type,x,y,level:1,cooldown:0,kills:0,flash:0,facingAngle:Math.PI/2,
+    spawnAt:performance.now(),invested:def.cost||100};
+  if(type==='superLaser') return {...base,targetId:null,laserBeam:null};
+  return base;
+}
+
+// Generic multi-cell footprint support (driven by TOWER_TYPES[type].size)
+function towerFootprint(t){
+  const sz=TOWER_TYPES[t.type]?.size||1;
+  if(sz===2) return [[t.x,t.y],[t.x+1,t.y],[t.x,t.y+1],[t.x+1,t.y+1]];
+  return [[t.x,t.y]];
+}
+// Center pixel of a tower (accounts for multi-cell footprint)
+function towerCenterPx(t){
+  const sz=TOWER_TYPES[t.type]?.size||1;
+  if(sz===2) return { x:state.board.x+(t.x+1)*state.board.cell, y:state.board.y+(t.y+1)*state.board.cell };
+  return cellCenter(t.x,t.y);
+}
+// Rotate `current` angle towards `target` angle by at most `maxDelta` radians (shortest path)
+function rotateTowards(current,target,maxDelta){
+  let diff=((target-current+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI;
+  if(Math.abs(diff)<=maxDelta) return target;
+  return current+Math.sign(diff)*maxDelta;
+}
+const ROT_SPEED=11; // radians/sec — how fast tower barrels track targets
+const SUPERLASER_COOLDOWN=2.0; // seconds between superLaser shots (used for charge-bar math too)
+
+const TOWER_SPAWN_ANIM_MS=280; // how long the "pop-in" scale animation takes after placement
+// Overshoot ease (classic UI "pop") — 0→1 input, briefly exceeds 1 near the end.
+function easeOutBack(t){ const c1=1.70158,c3=c1+1; return 1+c3*Math.pow(t-1,3)+c1*Math.pow(t-1,2); }
+// Current draw-time scale for a tower's spawn-in animation (1 once it's finished).
+function towerSpawnScale(t){
+  const age=performance.now()-(t.spawnAt||0);
+  if(age>=TOWER_SPAWN_ANIM_MS)return 1;
+  return Math.max(0,easeOutBack(clamp(age/TOWER_SPAWN_ANIM_MS,0,1)));
+}
+
+function availableBossTypes(){
+  const base=BOSS_TYPES.filter(b=>!b.__modId||state.activeMods.has(b.__modId));
+  const mp=currentMap();
+  if(mp.bossPool&&mp.bossPool.length){
+    const filtered=base.filter(b=>mp.bossPool.includes(b.id));
+    if(filtered.length) return filtered;
+  }
+  return base;
+}
+function getBossType(wave){
+  const pool=availableBossTypes();
+  if(pool.length===0) return BOSS_TYPES[0];
+  const idx=Math.floor(Math.max(0,wave/5-1))%pool.length;
+  return pool[Math.max(0,idx)];
+}
+
+/* Per-wave normal-enemy count & base speed (speed is in CELLS per second).
+   Maps may define waveEnemyCountBase/Growth and waveEnemySpeedBase/Growth,
+   plus an optional waveOverrides map keyed by wave number. */
+function waveEnemyParams(wave){
+  const mp=currentMap(); const wb=GAME_BALANCE.wave;
+  const cBase=mp.waveEnemyCountBase??wb.countBase, cGrow=mp.waveEnemyCountGrowth??wb.countGrowth;
+  const sBase=mp.waveEnemySpeedBase??wb.speedBase, sGrow=mp.waveEnemySpeedGrowth??wb.speedGrowth;
+  const ov=mp.waveOverrides&&mp.waveOverrides[wave];
+  const count=(ov&&ov.count!=null)?Math.max(1,Math.round(ov.count)):Math.floor(cBase+wave*cGrow);
+  const speed=(ov&&ov.speed!=null)?Math.max(.05,ov.speed):Math.min(wb.speedCap,sBase+wave*sGrow);
+  return {count,speed};
+}
+
+/* ── Wave planner ──
+   Deterministic for (map, wave) so the sidebar preview always matches what
+   actually spawns. `delay` is the pause BEFORE that entry spawns. */
+function buildWave(wave){
+  const mp=currentMap();
+  const params=waveEnemyParams(wave);
+  const total=clamp(Math.round(params.count),1,GAME_BALANCE.wave.maxCount);
+  const seed=(((mp.id.charCodeAt(0)||7)*2654435761) ^ (wave*40503) ^ (mp.path.length*7919))>>>0;
+  const rnd=rngFrom(seed);
+  const pool=ENEMY_TYPES.filter(t=>wave>=(t.unlock||1));
+  const poolW=pool.reduce((a,t)=>a+(t.weight||1),0);
+  const entries=[];
+  const gap=clamp(.58-wave*.008,.22,.58);
+  for(let i=0;i<total;i++){
+    let r=rnd()*poolW, pick=pool[0];
+    for(const t of pool){ r-=(t.weight||1); if(r<=0){ pick=t; break; } }
+    entries.push({ typeId:pick.id, boss:false, bossType:null, delay:i===0?.35:gap*(.72+rnd()*.56) });
+  }
+  let boss=null;
+  if(wave%5===0){
+    const bt=getBossType(wave);
+    if(bt){
+      boss=bt;
+      const at=clamp(Math.floor(entries.length*.45),1,Math.max(1,entries.length-1));
+      entries.splice(at,0,{ typeId:'grunt', boss:true, bossType:bt, delay:1.2 });
+      const escorts=2+Math.floor(wave/10);
+      const escType=wave>=9?'shield':wave>=6?'brute':'grunt';
+      for(let i=0;i<escorts;i++){
+        entries.splice(at+1+i,0,{ typeId:escType, boss:false, bossType:null, delay:i===0?.35:.45 });
+      }
+    }
+  }
+  const counts={};
+  for(const e of entries){
+    const key=e.boss?('boss:'+e.bossType.id):e.typeId;
+    counts[key]=(counts[key]||0)+1;
+  }
+  return { wave, total:entries.length, boss, counts, entries };
+}
+const _previewCache=new Map();
+function previewWave(wave){
+  const key=state.stageId+'|'+wave;
+  if(!_previewCache.has(key)) _previewCache.set(key,buildWave(wave));
+  return _previewCache.get(key);
+}
+
+/* Shared stat formulas — used by spawning AND by the codex, so the numbers
+   shown in the bestiary always match what actually spawns. */
+function normalEnemyStats(type,wave){
+  const wb=GAME_BALANCE.wave;
+  return {
+    hp:Math.round((wb.hpBase+wave*wb.hpLinear+wave*wave*wb.hpQuad)*(type.hpMul||1)*mapEnemyHpMul()),
+    speed:clamp(waveEnemyParams(wave).speed,.08,wb.speedCap*1.2)*(type.speedMul||1),
+    armor:type.armor||0,
+    baseDamage:Math.round((5+wave*.9)*(type.dmgMul||1)),
+    reward:Math.round((7+wave*1.35)*(type.rewardMul||1)),
+  };
+}
+function bossEnemyStats(bt,wave){
+  return {
+    hp:Math.round((760+wave*210)*(bt.hpMul||1)*mapEnemyHpMul()),
+    speed:clamp(waveEnemyParams(wave).speed,.08,GAME_BALANCE.wave.speedCap*1.2)*(bt.speedMul||1),
+    armor:Math.min(.55,(bt.armor||0)+wave*.003),
+    baseDamage:Math.round((42+wave*3.2)*(bt.dmgMul||1)),
+    reward:Math.round((14+wave*2.2)*8*(bt.doubleReward?2:1)),
+  };
+}
+
+function makeEnemy(wave, boss=false, pathIndex=0, bossType=null, typeId=null){
+  const pd=getPathData();
+  let e;
+  if(boss){
+    const bt=bossType||getBossType(wave);
+    const s=bossEnemyStats(bt,wave);
+    e={ id:uid(), boss:true, name:bt.name, bossType:bt.id, bossTypeName:bt.name,
+      bossColor:bt.color, icon:bt.icon||'👾', color:bt.color,
+      hp:s.hp, maxHp:s.hp, armor:s.armor, speed:s.speed, radius:28,
+      reward:s.reward, baseDamage:s.baseDamage,
+      slowResist:.55, summonTimer:4.5, rage:false };
+  } else {
+    const type=ENEMY_TYPES.find(t=>t.id===typeId)||ENEMY_TYPES[0];
+    const s=normalEnemyStats(type,wave);
+    e={ id:uid(), boss:false, name:type.name, typeId:type.id, color:type.color, icon:type.icon||'',
+      hp:s.hp, maxHp:s.hp, armor:s.armor, speed:s.speed, radius:type.radius||14,
+      reward:s.reward, baseDamage:s.baseDamage,
+      slowResist:type.slowResist||0, summonTimer:0, rage:false };
+  }
+  const d0=pathIndex>0?(pathIndex/Math.max(pd.pts.length-1,1))*pd.len:0;
+  Object.assign(e,{ d:d0, slow:1, slowTimer:0, alive:true, ox:0, oy:0, hitFlash:0, progress:0 });
+  syncEnemyPosition(e);
+  return e;
+}
+
+/* Re-derives an enemy's pixel position from its path distance. */
+function syncEnemyPosition(e){
+  const p=pointAtDistance(e.d||0); const b=state.board; const pd=getPathData();
+  e.x=b.x+p.x*b.cell+(e.ox||0);
+  e.y=b.y+p.y*b.cell+(e.oy||0);
+  e.progress=clamp((e.d||0)/pd.len,0,1);
+  e.seg=p.i;
+  return e;
+}
+function syncAllEnemyPositions(){ for(const e of state.enemies) if(e.alive) syncEnemyPosition(e); }
+
+const MAX_PARTICLES=420;
+function createParticles(x,y,count,color,power=1){
+  if(state.particles.length>MAX_PARTICLES) count=Math.max(0,Math.floor(count*.3));
+  for(let i=0;i<count;i++){
+    const a=Math.PI*2*i/count+Math.random()*.4;
+    const s=(60+Math.random()*130)*power;
+    state.particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:.55+Math.random()*.35,maxLife:.55+Math.random()*.35,size:2+Math.random()*3.5,color});
+  }
+}
+function floatingText(x,y,text,color='#fff',big=false){
+  if(state.texts.length>140) state.texts.shift();
+  state.texts.push({x,y,text,color,big:!!big,life:big?1:0.8,maxLife:big?1:0.8});
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GAME LOGIC
+   ═══════════════════════════════════════════════════════════ */
+function resetGame(stageId=state.stageId){
+  state.resumePending=false;
+  const saved={activeMods:state.activeMods,soundOn:state.soundOn,selectedTowerType:state.selectedTowerType,gameSpeed:state.gameSpeed};
+  Object.assign(state,{
+    stageId,wave:1,gold:GAME_BALANCE.startingGold,skillPoints:0,skills:{},selectedTowerId:null,
+    towers:[],enemies:[],projectiles:[],particles:[],texts:[],
+    waveState:'ready',spawnQueue:[],spawnTimer:0,paused:false,gameOver:false,
+    wavePlan:null,waveTotal:0,waveSpawned:0,waveKilled:0,waveLeaked:0,
+    autoWave:false,autoTimer:0,baseFlash:0,towersRev:state.towersRev+1,
+    message:`欢迎来到${MAPS.find(m=>m.id===stageId)?.name||'战场'}。点击开始下一波。`,
+    shake:0,hoverCell:null,overlayMode:'none',priorityTargetId:null,
+    camera:{x:0,y:0,needsCam:false,vx:0,vy:0},
+    buildCell:null,
+    base:{...GAME_BALANCE.defaultBase},
+    _uiCache:{gold:null,hp:null,skillPoints:null,wave:null,enemyCount:null,waveTag:null},
+  });
+  Object.assign(state,saved);
+  closeOverlay(); closeBuildWheel(); hideBanner();
+  callHook('onReset');
+  applyMapGrid(); fitBoard(); renderStatic();
+  writeAutoSave();          // a fresh run replaces the rolling snapshot
+}
+
+function openOverlay(mode,payload=null){ closeBuildWheel(); state.overlayMode=mode; renderOverlay(payload); document.getElementById('overlay').classList.add('show'); }
+/* 关闭弹窗时必须同时取消炮台选中，否则射程圈会在界面上“残留”。
+   （点击炮台会选中并打开面板，面板关掉后选中状态也要一起清掉。） */
+function closeOverlay(){
+  document.getElementById('overlay').classList.remove('show');
+  const hadSelection=state.selectedTowerId!=null;
+  state.overlayMode='none';
+  if(hadSelection){
+    state.selectedTowerId=null;
+    state.towersRev++;
+    if(state.board) renderStatic();
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SAVE / LOAD — export current progress as a downloadable JSON
+   file, and restore it later. Runtime-only state (enemies,
+   projectiles, particles) is intentionally NOT saved — the wave
+   in progress is discarded and the player resumes at "ready".
+   ═══════════════════════════════════════════════════════════ */
+const SAVE_TAG='starocean_td_save';
+
+/* Sanitises bestiary kill counts coming from a save file. */
+function normalizeCodex(src){
+  const out={enemies:{},bosses:{}};
+  if(src&&typeof src==='object'){
+    for(const g of ['enemies','bosses']){
+      const bucket=src[g];
+      if(!bucket||typeof bucket!=='object')continue;
+      for(const [k,v] of Object.entries(bucket)){
+        const n=Number(v);
+        if(Number.isFinite(n)&&n>0) out[g][k]=Math.min(1e9,Math.floor(n));
+      }
+    }
+  }
+  return out;
+}
+
+function serializeSave(){
+  return {
+    __save:SAVE_TAG, version:3, savedAt:Date.now(),
+    stageId:state.stageId, wave:state.wave, gold:state.gold, skillPoints:state.skillPoints,
+    skills:state.skills, base:state.base, autoWave:state.autoWave, autoSave:state.autoSave,
+    codex:state.codex,
+    towers:state.towers.map(t=>({type:t.type,x:t.x,y:t.y,level:t.level,kills:t.kills||0,
+      facingAngle:t.facingAngle||0,invested:t.invested})),
+    activeMods:[...state.activeMods], soundOn:state.soundOn, gameSpeed:state.gameSpeed,
+    selectedTowerType:state.selectedTowerType,
+  };
+}
+
+function downloadSave(){
+  const data=serializeSave();
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const ts=new Date(); const pad=n=>String(n).padStart(2,'0');
+  const fname=`星海防线_存档_${ts.getFullYear()}${pad(ts.getMonth()+1)}${pad(ts.getDate())}_${pad(ts.getHours())}${pad(ts.getMinutes())}.json`;
+  const a=document.createElement('a'); a.href=url; a.download=fname;
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  writeAutoSave();
+  setMsg('存档已导出到下载文件夹（本机自动存档也已刷新）。');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   AUTOSAVE — a rolling snapshot in localStorage. It is written
+   between waves, on important purchases, every 30s, and when the
+   page is hidden/unloaded; the next visit offers to resume it.
+   ═══════════════════════════════════════════════════════════ */
+const AUTOSAVE_KEY='starocean_td_autosave';
+let _autoSaveTimer=null;
+let _storageOk=null;
+
+function storageAvailable(){
+  if(_storageOk!==null) return _storageOk;
+  try{
+    if(typeof localStorage==='undefined'){ _storageOk=false; }
+    else{
+      const probe='__td_probe__';
+      localStorage.setItem(probe,'1');
+      localStorage.removeItem(probe);
+      _storageOk=true;
+    }
+  }catch(e){ _storageOk=false; }
+  state.autoSaveAvailable=_storageOk;
+  return _storageOk;
+}
+
+function readAutoSave(){
+  try{
+    if(typeof localStorage==='undefined')return null;
+    const raw=localStorage.getItem(AUTOSAVE_KEY);
+    if(!raw)return null;
+    const data=JSON.parse(raw);
+    if(!data||data.__save!==SAVE_TAG)return null;
+    return data;
+  }catch(e){ return null; }
+}
+
+function writeAutoSave(){
+  if(state.previewMode)return false;     // 编辑器试玩不写入正式自动存档
+  if(!state.autoSave)return false;
+  if(state.resumePending)return false;   // never overwrite an undecided snapshot
+  if(state.gameOver)return false;        // keep the last good checkpoint after a loss
+  if(!storageAvailable())return false;
+  try{
+    const data=serializeSave();
+    data.autosave=true;
+    data.playing=state.waveState==='spawning';
+    localStorage.setItem(AUTOSAVE_KEY,JSON.stringify(data));
+    state.lastAutoSave=Date.now();
+    updateAutoSaveUI();
+    return true;
+  }catch(e){ console.warn('[autosave] 写入失败：',e); return false; }
+}
+
+function clearAutoSave(){
+  try{ if(typeof localStorage!=='undefined') localStorage.removeItem(AUTOSAVE_KEY); }catch(e){}
+  state.lastAutoSave=0;
+  updateAutoSaveUI();
+}
+
+function scheduleAutoSave(delay=1200){
+  if(!state.autoSave)return;
+  if(_autoSaveTimer) clearTimeout(_autoSaveTimer);
+  _autoSaveTimer=setTimeout(()=>{ _autoSaveTimer=null; writeAutoSave(); },delay);
+}
+
+function fmtClock(ts){
+  const d=new Date(ts); const p=n=>String(n).padStart(2,'0');
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+function updateAutoSaveUI(){
+  const info=document.getElementById('autoSaveInfo');
+  if(info){
+    if(!state.autoSaveAvailable) info.textContent='⚠ 自动保存不可用：浏览器禁止了本地存储，请用「导出存档文件」。';
+    else if(!state.autoSave) info.textContent='自动保存已关闭，仅保留手动导出的存档文件。';
+    else if(state.lastAutoSave) info.textContent=`✅ 已自动保存 ${fmtClock(state.lastAutoSave)} · 关闭页面后再打开可继续。`;
+    else info.textContent='✅ 自动保存已开启：过波、购买、关闭页面时写入本机浏览器。';
+  }
+  const toggle=document.getElementById('autoSaveToggle');
+  if(toggle){
+    toggle.textContent=`自动保存：${state.autoSave?'开':'关'}`;
+    toggle.classList.toggle('active',state.autoSave);
+  }
+  const loadBtn=document.getElementById('loadAutoBtn');
+  if(loadBtn) loadBtn.disabled=!readAutoSave();
+}
+
+/* Summary + startup prompt for the rolling snapshot. */
+function autoSaveSummary(data){
+  const map=MAPS.find(m=>m.id===data.stageId);
+  const codex=normalizeCodex(data.codex);
+  const killTotal=Object.values(codex.enemies).reduce((a,b)=>a+b,0)+Object.values(codex.bosses).reduce((a,b)=>a+b,0);
+  return { mapName:map?map.name:(data.stageId||'未知地图'), towers:(data.towers||[]).length, killTotal };
+}
+
+function maybeOfferAutoSave(){
+  storageAvailable();
+  updateAutoSaveUI();
+  const data=readAutoSave();
+  if(!data)return false;
+  // Nothing worth resuming yet → don't nag on a brand-new profile.
+  if((data.wave||1)<=1&&(data.towers||[]).length===0)return false;
+  const when=data.savedAt?new Date(data.savedAt).toLocaleString('zh-CN',{hour12:false}):'未知时间';
+  state.resumePending=true;
+  openOverlay('resume',{data,when});
+  return true;
+}
+
+function loadAutoSave(){
+  const data=readAutoSave();
+  if(!data){ setMsg('没有找到本机自动存档。'); return; }
+  if((state.towers.length||state.wave>1||state.gold!==GAME_BALANCE.startingGold)&&
+     !confirm('载入自动存档会覆盖当前进度，确定继续吗？')) return;
+  closeOverlay();
+  applySave(data);
+  setMsg('已载入自动存档，继续守卫基地。');
+}
+
+function applySave(data){
+  if(!data||data.__save!==SAVE_TAG){ setMsg('读取失败：不是有效的存档文件。'); return; }
+  state.resumePending=false;
+  closeBuildWheel();
+  const mapExists=MAPS.some(m=>m.id===data.stageId);
+  if(mapExists) state.stageId=data.stageId;
+  state.wave=Math.max(1,data.wave|0);
+  state.gold=Math.max(0,Number(data.gold)||0);
+  state.skillPoints=Math.max(0,data.skillPoints|0);
+  state.skills=(data.skills&&typeof data.skills==='object')?data.skills:{};
+  const cleanSkills={};
+  for(const [k,v] of Object.entries(state.skills)){
+    const n=Number(v);
+    if(Number.isFinite(n)&&n>0) cleanSkills[k]=Math.min(9999,Math.floor(n));
+  }
+  state.skills=cleanSkills;
+  state.codex=normalizeCodex(data.codex);
+  if(data.autoSave!=null) state.autoSave=!!data.autoSave;
+  state.base=Object.assign({...GAME_BALANCE.defaultBase},data.base||{});
+  state.base.maxHp=Math.max(1,Number(state.base.maxHp)||GAME_BALANCE.defaultBase.maxHp);
+  state.base.hp=clamp(Number(state.base.hp)||state.base.maxHp,1,state.base.maxHp);
+  state.base.level=Math.max(1,Math.floor(Number(state.base.level)||1));
+  state.base.damage=Math.max(1,Number(state.base.damage)||GAME_BALANCE.defaultBase.damage);
+  state.base.range=clamp(Number(state.base.range)||GAME_BALANCE.defaultBase.range,.5,10);
+  state.base.fireRate=clamp(Number(state.base.fireRate)||GAME_BALANCE.defaultBase.fireRate,.1,5);
+  state.base.cooldown=0;
+  const pset=pathSet(); const used=new Set(); const towers=[];
+  for(const raw of (data.towers||[])){
+    const type=TOWER_TYPES[raw.type];
+    if(!type||!Number.isFinite(raw.x)||!Number.isFinite(raw.y)) continue;
+    const foot=type.size===2?[[raw.x,raw.y],[raw.x+1,raw.y],[raw.x,raw.y+1],[raw.x+1,raw.y+1]]:[[raw.x,raw.y]];
+    if(foot.some(([fx,fy])=>fx<0||fy<0||fx>=GRID_W||fy>=GRID_H||pset.has(`${fx},${fy}`))) continue;
+    if(foot.some(([fx,fy])=>used.has(`${fx},${fy}`))) continue;
+    foot.forEach(([fx,fy])=>used.add(`${fx},${fy}`));
+    const tw=makeTower(raw.type,raw.x,raw.y);
+    tw.level=Math.max(1,raw.level|0); tw.kills=Math.max(0,raw.kills|0);
+    tw.facingAngle=Number.isFinite(raw.facingAngle)?raw.facingAngle:Math.PI/2;
+    tw.invested=Math.max(type.cost||100,Number(raw.invested)||0);
+    towers.push(tw);
+  }
+  state.towers=towers;
+  state.enemies=[]; state.projectiles=[]; state.particles=[]; state.texts=[];
+  state.waveState='ready'; state.spawnQueue=[]; state.spawnTimer=0;
+  state.wavePlan=null; state.waveTotal=0; state.waveSpawned=0; state.waveKilled=0; state.waveLeaked=0;
+  state.gameOver=false; state.paused=false; state.priorityTargetId=null; state.selectedTowerId=null;
+  state.baseFlash=0; state.towersRev=state.towersRev+1;
+  if(Array.isArray(data.activeMods)){
+    const loadedIds=new Set(window.__mods.map(m=>m.id));
+    state.activeMods=new Set(data.activeMods.filter(id=>loadedIds.has(id)));
+  }
+  state.soundOn=!!data.soundOn; state.gameSpeed=SPEED_CYCLE.includes(data.gameSpeed)?data.gameSpeed:1;
+  state.autoWave=!!data.autoWave;
+  state.autoTimer=state.autoWave?GAME_BALANCE.autoWaveDelay:0;
+  state.selectedTowerType=TOWER_TYPES[data.selectedTowerType]?data.selectedTowerType:state.selectedTowerType;
+  state._uiCache={gold:null,hp:null,skillPoints:null,wave:null,enemyCount:null,waveTag:null};
+  applyMapGrid(); fitBoard(); renderStatic();
+  writeAutoSave();
+  updateAutoSaveUI();
+  setMsg(mapExists?'存档已读取，继续守卫基地吧！':`⚠️ 存档使用的地图「${data.stageId}」尚未加载（可能是自定义地图模组），已恢复其余进度，请先在模组面板加载对应模组，再切换到该地图。`);
+}
+
+document.getElementById('saveGameBtn').onclick=downloadSave;
+document.getElementById('loadGameBtn').onclick=()=>document.getElementById('loadGameInput').click();
+document.getElementById('loadAutoBtn').onclick=loadAutoSave;
+document.getElementById('autoSaveToggle').onclick=()=>{
+  state.autoSave=!state.autoSave;
+  if(state.autoSave){
+    const ok=writeAutoSave();
+    setMsg(ok?'已开启自动保存：关闭页面后再打开可继续。':'已开启自动保存，但浏览器禁止本地存储，请用「导出存档文件」。');
+  }else{
+    setMsg('已关闭自动保存（已有自动存档仍保留，可随时载入）。');
+  }
+  updateAutoSaveUI();
+};
+document.getElementById('loadGameInput').addEventListener('change',e=>{
+  const file=e.target.files[0]; if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{
+      applySave(JSON.parse(ev.target.result));
+      setMsg('存档文件已读取，并已更新本机自动存档。');
+    }
+    catch(err){ setMsg('读取失败：文件内容不是有效的JSON。'); }
+  };
+  reader.readAsText(file);
+  e.target.value='';
+});
+
+/* Persist when the player leaves or hides the tab. */
+window.addEventListener('beforeunload',()=>{ writeAutoSave(); });
+window.addEventListener('pagehide',()=>{ writeAutoSave(); });
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden') writeAutoSave(); });
+setInterval(()=>{ if(state.autoSave&&!state.gameOver) writeAutoSave(); },30000);
+
+function effectiveStats(tower){
+  const type=TOWER_TYPES[tower.type]||TOWER_TYPES.cannon;
+  const lv=Math.max(1,tower.level|0), s=state.skills;
+  const dmgMul = 1+(s.pow||0)*.12+(s.core||0)*.04+(s.overdrive||0)*.03+(s.ultimate1||0)*.03+(s.omega||0)*.02;
+  const rateMul = 1+(s.spd||0)*.10+(s.core||0)*.03+(s.haste||0)*.06+(s.overdrive||0)*.05+(s.ultimate1||0)*.03+(s.omega||0)*.02;
+  const rngMul  = 1+(s.rng||0)*.08+(s.core||0)*.02+(s.scope||0)*.05+(s.ultimate1||0)*.03+(s.omega||0)*.02;
+  const growMul = 1+(lv-1)*(0.26+(s.turret||0)*0.012);
+  const damage = Math.max(1,Math.round((type.baseDamage||10)*growMul*dmgMul));
+  const cooldown = Math.max(.15,(type.baseFireRate||1)/rateMul);
+  const splashCells = (type.splash||0)*(1+(s.cri||0)*.04+(s.splash2||0)*.06);
+  return {
+    damage,
+    cooldown,
+    fireRate:cooldown,       // legacy alias (seconds between shots)
+    dps:damage/cooldown,
+    range:(type.baseRange||2.5)*rngMul*(tower.type==='laser'?1+(lv-1)*.02:1),
+    projectileSpeed:type.projectileSpeed||8,
+    splashCells, splash:splashCells,
+    slow:Math.min(.8,(type.slow||0)*(1+(s.fro||0)*.12+(s.frostnova||0)*.08)),
+    pierce:(type.pierce||0)+(tower.type==='laser'?Math.floor((s.link||0)/2):0),
+    armorPen:Math.min(1,(type.armorPen||0)+(s.link||0)*.01),
+    critChance:Math.min(.5,(s.cri||0)*.07),
+    critMul:1.9,
+    bossMul:1+(s.boss||0)*.10,
+    goldMul:1+(s.eco||0)*.15+(s.ultimate2||0)*.05+(s.omega||0)*.02,
+  };
+}
+
+function baseEffectiveStats(){
+  const s=state.skills; const b=state.base; const lv=b.level;
+  const mul=1+(s.fort||0)*.08+(s.core||0)*.03+(s.ultimate2||0)*.05+(s.omega||0)*.02;
+  const cd=Math.max(.35,b.fireRate-(lv-1)*.035);
+  return {
+    damage:Math.round(b.damage*(1+(lv-1)*.32)*mul),
+    range:b.range*(1+(lv-1)*.05)*(1+(s.fort||0)*.03+(s.scope||0)*.04),
+    fireRate:cd,
+    cooldown:cd,
+  };
+}
+
+function superLaserStats(){
+  const s=state.skills;
+  const mul=1+(s.pow||0)*.05+(s.overdrive||0)*.025+(s.ultimate1||0)*.03+(s.omega||0)*.02;
+  return { damage:Math.round(550*mul), splashCells:.7, armorPen:1, critChance:.2, critMul:2, bossMul:1.6 };
+}
+
+function baseUpgradeCost(){
+  const lv=state.base.level;
+  return Math.round(160*Math.pow(1.38,lv-1));
+}
+
+/* ── Base auto-heal (科技「基地再生」) ──
+   Returns HP restored per second. 每级 0.4% 最大血量/秒，上限 12%/秒，
+   避免科技堆满后基地变成无敌。 */
+function baseRegenPct(lv){ return lv>0?Math.min(.12,lv*.004):0; }
+function baseRegenPerSec(){ return state.base.maxHp*baseRegenPct(state.skills.regen||0); }
+
+/* Wave banner in the stage viewport (feeds the #waveBanner element). */
+let _bannerTimer=null;
+function showBanner(text,boss=false){
+  const el=document.getElementById('waveBanner'); if(!el)return;
+  el.textContent=text;
+  el.classList.toggle('boss',!!boss);
+  el.classList.add('show');
+  clearTimeout(_bannerTimer);
+  _bannerTimer=setTimeout(()=>el.classList.remove('show'),1900);
+}
+function hideBanner(){
+  clearTimeout(_bannerTimer);
+  document.getElementById('waveBanner')?.classList.remove('show');
+}
+
+function startWave(){
+  if(state.gameOver||state.paused||state.waveState!=='ready')return;
+  state.resumePending=false;             // playing supersedes an unanswered resume prompt
+  const plan=buildWave(state.wave);
+  state.wavePlan=plan;
+  state.spawnQueue=plan.entries.map(e=>({...e}));
+  state.waveTotal=plan.total; state.waveSpawned=0; state.waveKilled=0; state.waveLeaked=0;
+  state.spawnTimer=.35; state.waveState='spawning'; state.autoTimer=0;
+  const bossWave=!!plan.boss;
+  setMsg(bossWave?`第${state.wave}波：${plan.boss.icon} ${plan.boss.name} 正在接近！`:
+         `第${state.wave}波开始，共 ${plan.total} 个敌人。`);
+  showBanner(bossWave?`⚠ 第 ${state.wave} 波 · BOSS 来袭`:`第 ${state.wave} 波`,bossWave);
+  sfx(bossWave?'boss':'wave');
+  renderStatic();
+  callHook('onWaveStart',state.wave);
+}
+
+function lateGameSkillBonus(){ return Math.floor(state.wave/8); } // grows every 8 waves survived
+
+function waveClearReward(wave){
+  const eco=1+(state.skills.eco||0)*.15+(state.skills.ultimate2||0)*.05+(state.skills.omega||0)*.02;
+  const gold=Math.round((38+wave*10)*eco+(state.skills.res||0)*14);
+  const sp=1+Math.floor(wave/5)+(wave%5===0?2:0)+lateGameSkillBonus();
+  return {gold,sp};
+}
+
+function nextWaveDone(){
+  if(state.waveState!=='spawning')return;   // guard against a double clear
+  state.waveState='cleared';
+  const cleared=state.wave;
+  const {gold,sp}=waveClearReward(cleared);
+  state.gold+=gold; state.skillPoints+=sp;
+  state.wave=cleared+1;
+  state.waveState='ready'; state.spawnQueue=[]; state.spawnTimer=0; state.wavePlan=null;
+  state.waveTotal=0; state.waveSpawned=0; state.waveKilled=0; state.waveLeaked=0;
+  if(state.autoWave) state.autoTimer=GAME_BALANCE.autoWaveDelay;
+  setMsg(`第${cleared}波清空！+${sp} 技能点 · +${gold} 金币${state.autoWave?` · ${GAME_BALANCE.autoWaveDelay}s 后自动开波`:''}`);
+  showBanner(`第 ${cleared} 波 · 清空`,false);
+  sfx('coin'); renderStatic();
+  writeAutoSave();                       // wave boundaries are the safest snapshot
+  callHook('onWaveClear',cleared);
+}
+
+function triggerGameOver(){
+  closeBuildWheel();
+  state.gameOver=true; state.paused=true; state.spawnQueue=[]; state.autoWave=false;
+  setMsg(`基地陷落！你守住了 ${state.wave-1} 波。点击重开或选择地图重新开始。`);
+  showBanner('基地陷落',true);
+  sfx('boss'); renderStatic();
+}
+
+function buyTech(id){
+  const node=TECHS.find(n=>n.id===id); if(!node)return;
+  const lv=state.skills[id]||0;
+  if(!node.req.every(r=>(state.skills[r]||0)>0)){ setMsg('先解锁上游科技。'); renderOverlay(); return; }
+  const cost=skillCost(lv,node.base);
+  if(state.skillPoints<cost){ setMsg('技能点不足。'); renderOverlay(); return; }
+  state.skillPoints-=cost; state.skills[id]=lv+1;
+  state._justBoughtTechId=id;
+  setMsg(`「${node.name}」升到 Lv.${lv+1} · 需 ${skillCost(lv+1,node.base)} 点升下一级`);
+  sfx('upgrade'); renderStatic(); renderOverlay();
+  scheduleAutoSave();
+}
+
+function upgradeBase(){
+  const cost=baseUpgradeCost();
+  if(state.gold<cost){ setMsg(`金币不足，升级基地需要 ${cost} 金。`); return; }
+  state.gold-=cost; state.base.level+=1;
+  state.base.maxHp+=140; state.base.damage+=16;
+  state.base.range=Math.min(6,state.base.range+.05);
+  state.base.hp=Math.min(state.base.maxHp,state.base.hp+Math.round(state.base.maxHp*.25)+60);
+  setMsg(`基地升级到 Lv.${state.base.level}！下次升级需 ${baseUpgradeCost()} 金。`);
+  sfx('upgrade'); createParticles(basePosition().x,basePosition().y,24,'#ffd36b',1.2);
+  state.shake=Math.max(state.shake,2); renderStatic(); renderOverlay('base');
+  scheduleAutoSave();
+}
+
+/* ── Tower / projectile logic ── */
+function nearestEnemy(center,rangePx){
+  if(state.priorityTargetId){
+    const pe=state.enemies.find(e=>e.id===state.priorityTargetId&&e.alive);
+    if(pe&&dist(center,pe)<=rangePx) return pe;
+  }
+  let best=null,bestScore=-Infinity;
+  for(const e of state.enemies){
+    if(!e.alive)continue; const d=dist(center,e);
+    if(d<=rangePx){ const s=e.progress*1000-e.hp*.01; if(s>bestScore){best=e;bestScore=s;} }
+  }
+  return best;
+}
+
+function mostAdvancedEnemy(){
+  let best=null,bestProg=-1;
+  for(const e of state.enemies){ if(!e.alive)continue; if(e.progress>bestProg){best=e;bestProg=e.progress;} }
+  return best;
+}
+
+function addProjectile(tower,target,stats){
+  const from=towerCenterPx(tower); const col=TOWER_TYPES[tower.type].color;
+  state.projectiles.push({id:uid(),type:tower.type,x:from.x,y:from.y,tx:target.x,ty:target.y,
+    speed:stats.projectileSpeed*state.board.cell,damage:stats.damage,slow:stats.slow,
+    splashCells:stats.splashCells||0,pierce:stats.pierce||0,armorPen:stats.armorPen||0,
+    critChance:stats.critChance||0,critMul:stats.critMul||1.8,goldMul:stats.goldMul||1,
+    bossMul:stats.bossMul||1,color:col,ownerId:tower.id,trail:[],isBase:false});
+  tower.cooldown=stats.cooldown||1; tower.flash=.12;
+  createParticles(from.x,from.y,6,`rgb(${col[0]} ${col[1]} ${col[2]})`,.5); sfx('shoot');
+}
+
+function addBaseProjectile(target){
+  const bst=baseEffectiveStats(); const bpos=basePosition();
+  const col=[255,210,60];
+  state.projectiles.push({id:uid(),type:'base',x:bpos.x,y:bpos.y,tx:target.x,ty:target.y,
+    speed:10*state.board.cell,damage:bst.damage,slow:0,splashCells:.75,pierce:0,armorPen:.2,
+    critChance:.1,critMul:1.7,goldMul:1,bossMul:1.2,color:col,ownerId:'base',trail:[],isBase:true});
+  sfx('shoot');
+}
+
+/* Strongest slow wins; bosses resist part of it. */
+function applySlow(enemy,strength,duration=1.6){
+  if(!enemy||!enemy.alive||strength<=0)return;
+  const applied=Math.min(.85,strength*(1-clamp(enemy.slowResist||0,0,.85)));
+  if(applied<=0)return;
+  enemy.slow=Math.min(enemy.slow,1-applied);
+  enemy.slowTimer=Math.max(enemy.slowTimer,duration);
+}
+
+/* Single entry point for all damage: armor, boss multiplier, crit, floating
+   text, kill credit. Splash also goes through here so rewards/kills stay right. */
+function damageEnemy(enemy,amount,opts={}){
+  if(!enemy||!enemy.alive)return 0;
+  let dmg=Math.max(0,amount);
+  if(enemy.boss) dmg*=(opts.bossMul||1);
+  const armor=clamp(enemy.armor||0,0,.8);
+  dmg*=(1-armor*(1-clamp(opts.armorPen||0,0,1)));
+  dmg=Math.max(1,Math.round(dmg));
+  enemy.hp-=dmg; enemy.hitFlash=.14;
+  const col=opts.color||[255,240,210];
+  createParticles(opts.x??enemy.x,opts.y??enemy.y,opts.crit?8:4,`rgb(${col.join(',')})`,opts.crit?1:.55);
+  floatingText(enemy.x+(Math.random()*12-6),enemy.y-(enemy.radius||14)-8,`${dmg}`,
+    opts.crit?'#ffd700':(enemy.boss?'#ffe9c4':'#fff6d6'),!!opts.crit);
+  if(enemy.hp<=0) killEnemy(enemy,opts);
+  return dmg;
+}
+
+function applyHit(enemy,proj,hx,hy){
+  if(!enemy||!enemy.alive)return;
+  const col=proj.color||[255,255,255];
+  const crit=proj.critChance>0&&Math.random()<proj.critChance;
+  let dmg=proj.damage*(crit?(proj.critMul||1.8):1);
+  if(proj.slow>0) applySlow(enemy,proj.slow,1.5+(state.skills.fro||0)*.12);
+  damageEnemy(enemy,dmg,{crit,armorPen:proj.armorPen||0,bossMul:proj.bossMul||1,
+    ownerId:proj.ownerId,x:hx,y:hy,color:col});
+  const heavy=proj.type==='cannon'||proj.type==='mortar'||proj.type==='superLaser'||proj.isBase;
+  const radius=(proj.splashCells||0)*state.board.cell;
+  if(heavy&&radius>2){
+    for(const o of state.enemies){
+      if(!o.alive||o.id===enemy.id)continue;
+      const d=Math.hypot(o.x-hx,o.y-hy);
+      if(d<=radius){
+        const falloff=1-.55*(d/radius);
+        damageEnemy(o,dmg*.55*falloff,{crit:false,armorPen:proj.armorPen||0,bossMul:proj.bossMul||1,
+          ownerId:proj.ownerId,x:o.x,y:o.y,color:col});
+      }
+    }
+  }
+  sfx(enemy.hp<=0?'kill':'hit');
+  state.shake=Math.max(state.shake,heavy?1.4:.6);
+}
+
+function killEnemy(enemy,opts={}){
+  if(!enemy.alive)return; enemy.alive=false;
+  if(state.priorityTargetId===enemy.id) state.priorityTargetId=null;
+  const owner=opts.ownerId?state.towers.find(t=>t.id===opts.ownerId):null;
+  if(owner) owner.kills=(owner.kills||0)+1;
+  const eco=1+(state.skills.eco||0)*.15+(state.skills.ultimate2||0)*.05+(state.skills.omega||0)*.02;
+  const reward=Math.round((enemy.reward||0)*eco);
+  state.gold+=reward; state.waveKilled++;
+  // Bestiary kill tally
+  const codexKey=enemy.boss?enemy.bossType:enemy.typeId;
+  if(codexKey){
+    const bucket=enemy.boss?state.codex.bosses:state.codex.enemies;
+    bucket[codexKey]=(bucket[codexKey]||0)+1;
+  }
+  callHook('onEnemyDie',enemy);
+  const deathCol=enemy.boss?(enemy.bossColor||[255,211,107]):(opts.color||[255,140,120]);
+  createParticles(enemy.x,enemy.y,enemy.boss?44:14,`rgb(${deathCol.join(',')})`,enemy.boss?1.4:.9);
+  floatingText(enemy.x,enemy.y-20,`+${reward}`,'#9ef7c1',!!enemy.boss);
+  state.shake=Math.max(state.shake,enemy.boss?10:2.2);
+  if(enemy.boss){
+    const spGain=2+lateGameSkillBonus();
+    state.skillPoints+=spGain; sfx('kill');
+    setMsg(`${enemy.icon||'👾'} ${enemy.name||'Boss'} 击败！+${spGain} 技能点 · +${reward} 金币`);
+    floatingText(enemy.x,enemy.y-46,'BOSS DOWN','#ffd36b',true);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   UPDATE LOOP
+   ═══════════════════════════════════════════════════════════ */
+function update(dt){
+  if(state.paused||state.gameOver)return;
+  state.time+=dt;
+  callHook('onUpdate',dt);
+  const pd=getPathData();
+  const cell=state.board.cell;
+
+  // Auto-wave countdown
+  if(state.autoWave&&state.waveState==='ready'&&state.autoTimer>0){
+    state.autoTimer-=dt;
+    if(state.autoTimer<=0){ state.autoTimer=0; startWave(); if(state.gameOver)return; }
+  }
+
+  // ── Spawning ──
+  if(state.waveState==='spawning'){
+    state.spawnTimer-=dt;
+    let guard=0;
+    const enter=cellCenter(currentMap().path[0][0],currentMap().path[0][1]);
+    while(state.spawnTimer<=0&&state.spawnQueue.length>0&&guard++<50){
+      const entry=state.spawnQueue.shift();
+      const e=makeEnemy(state.wave,!!entry.boss,0,entry.bossType||null,entry.typeId);
+      state.enemies.push(e); state.waveSpawned++;
+      state.spawnTimer+=Math.max(.12,entry.delay||.4);
+      if(entry.boss){
+        state.shake=Math.max(state.shake,6); sfx('boss');
+        createParticles(enter.x,enter.y,26,`rgb(${(e.bossColor||[255,180,80]).join(',')})`,1.15);
+        showBanner(`${e.icon} ${e.name} 出现`,true);
+      } else {
+        createParticles(enter.x,enter.y,5,'#7fd6ff',.5);
+      }
+    }
+    if(state.spawnQueue.length===0&&!state.enemies.some(e=>e.alive)) nextWaveDone();
+  }
+
+  // ── Towers ──
+  for(const t of state.towers){
+    t.cooldown=Math.max(0,t.cooldown-dt); t.flash=Math.max(0,t.flash-dt);
+    if(t.type==='superLaser'){
+      if(t.laserBeam){ t.laserBeam.life-=dt; if(t.laserBeam.life<=0)t.laserBeam=null; }
+      let target=null;
+      if(state.priorityTargetId) target=state.enemies.find(e=>e.id===state.priorityTargetId&&e.alive);
+      if(!target) target=mostAdvancedEnemy();
+      const slc=towerCenterPx(t);
+      if(target){
+        const desired=Math.atan2(target.x-slc.x,-(target.y-slc.y));
+        t.facingAngle=rotateTowards(t.facingAngle,desired,ROT_SPEED*1.4*dt);
+      }
+      if(t.cooldown<=0&&target){
+        t.targetId=target.id;
+        t.laserBeam={sx:slc.x,sy:slc.y,tx:target.x,ty:target.y,life:.5,maxLife:.5};
+        const st=superLaserStats();
+        applyHit(target,{type:'superLaser',damage:st.damage,slow:0,splashCells:st.splashCells,pierce:0,
+          critChance:st.critChance,critMul:st.critMul,goldMul:1,bossMul:st.bossMul,armorPen:st.armorPen,
+          color:[0,240,255],ownerId:t.id,isBase:false},target.x,target.y);
+        createParticles(target.x,target.y,26,'#00f0ff',1.3);
+        t.cooldown=SUPERLASER_COOLDOWN; state.shake=Math.max(state.shake,5);
+        sfx('superLaser');
+      } else if(!target){ t.targetId=null; }
+      continue;
+    }
+    const st=effectiveStats(t);
+    const center=towerCenterPx(t);
+    const target=nearestEnemy(center,st.range*cell);
+    if(target){
+      const desired=Math.atan2(target.x-center.x,-(target.y-center.y));
+      t.facingAngle=rotateTowards(t.facingAngle,desired,ROT_SPEED*dt);
+      if(t.cooldown<=0) addProjectile(t,target,st);
+    }
+  }
+
+  // ── Base ──
+  const bst=baseEffectiveStats(); const bpos=basePosition();
+  state.base.cooldown=Math.max(0,state.base.cooldown-dt);
+  state.baseFlash=Math.max(0,state.baseFlash-dt);
+  if(state.base.cooldown<=0){
+    const tgt=nearestEnemy(bpos,bst.range*cell);
+    if(tgt){ addBaseProjectile(tgt); state.base.cooldown=bst.cooldown; }
+  }
+
+  // ── Base auto-heal (科技「基地再生」) ──
+  const regen=baseRegenPerSec();
+  if(regen>0&&state.base.hp<state.base.maxHp){
+    const heal=Math.min(regen*dt,state.base.maxHp-state.base.hp);
+    state.base.hp+=heal;
+    state._regenAcc=(state._regenAcc||0)+heal;
+    const step=Math.max(6,state.base.maxHp*.01);
+    if(state._regenAcc>=step){
+      floatingText(bpos.x+(Math.random()*18-9),bpos.y-30,`+${Math.round(state._regenAcc)}`,'#7dffbb',false);
+      state._regenAcc=0;
+    }
+  } else if(state.base.hp>=state.base.maxHp){
+    state._regenAcc=0;
+  }
+
+  // ── Enemy movement (path distance in cells) ──
+  const newEnemies=[];
+  let gameOverHit=false;
+  for(const enemy of state.enemies){
+    if(!enemy.alive)continue;
+    if(enemy.hitFlash>0) enemy.hitFlash=Math.max(0,enemy.hitFlash-dt);
+    if(enemy.slowTimer>0){
+      enemy.slowTimer=Math.max(0,enemy.slowTimer-dt);
+      if(enemy.slowTimer===0) enemy.slow=1;
+    }
+    if(enemy.boss){
+      enemy.rage=enemy.hp/enemy.maxHp<.5;
+      enemy.summonTimer-=dt;
+      // Don't let a boss parked next to the base flood it with summons.
+      const crowd=enemy.d/pd.len>.86||state.enemies.reduce((n,e)=>n+(e.alive&&!e.boss?1:0),0)>=42;
+      if(enemy.summonTimer<=0){
+        if(crowd){ enemy.summonTimer=.9; }
+        else {
+          const bt=BOSS_TYPES.find(b=>b.id===enemy.bossType)||BOSS_TYPES[0];
+          const count=enemy.rage?bt.rageMinions:bt.minions;
+          enemy.summonTimer=enemy.rage?bt.summonRate*.75:bt.summonRate;
+          const types=ENEMY_TYPES.filter(t=>state.wave>=(t.unlock||1));
+          const type=types[Math.floor(Math.random()*types.length)]||ENEMY_TYPES[0];
+          for(let i=0;i<count;i++){
+            const m=makeEnemy(state.wave,false,0,null,type.id);
+            m.d=Math.min(enemy.d,pd.len*.9);
+            m.ox=(Math.random()-.5)*26; m.oy=(Math.random()-.5)*26;
+            m.speed*=1.05;
+            syncEnemyPosition(m);
+            newEnemies.push(m);
+          }
+          state.shake=Math.max(state.shake,1.6);
+          createParticles(enemy.x,enemy.y,12,`rgb(${(enemy.bossColor||[255,211,107]).join(',')})`,.85);
+        }
+      }
+    }
+    enemy.d+=enemy.speed*enemy.slow*(enemy.rage?1.25:1)*dt;
+    if(enemy.d>=pd.len){
+      const dmg=Math.max(1,Math.round(enemy.baseDamage||10));
+      state.base.hp=Math.max(0,state.base.hp-dmg);
+      state.baseFlash=.5; state.waveLeaked++;
+      createParticles(bpos.x,bpos.y,18,'#ff6b6b',1);
+      floatingText(bpos.x,bpos.y-26,`-${dmg}`,'#ff8080',true);
+      state.shake=Math.max(state.shake,enemy.boss?7:2.5);
+      sfx('base_hit'); enemy.alive=false;
+      callHook('onBaseHit',enemy,dmg);
+      if(state.base.hp<=0){ gameOverHit=true; break; }
+      continue;
+    }
+    syncEnemyPosition(enemy);
+  }
+  if(newEnemies.length) state.enemies.push(...newEnemies);
+  if(gameOverHit){ triggerGameOver(); return; }
+
+  // ── Projectiles (in-place compaction — avoids reallocating an array every frame) ──
+  let pw=0;
+  for(let i=0;i<state.projectiles.length;i++){
+    const p=state.projectiles[i];
+    const dx=p.tx-p.x,dy=p.ty-p.y,d=Math.hypot(dx,dy),step=p.speed*dt;
+    p.trail.push([p.x,p.y]); if(p.trail.length>6)p.trail.shift();
+    if(d<=step||d<.5){
+      const hx=p.tx,hy=p.ty;
+      const r=p.type==='laser'?24:p.type==='mortar'?44:p.isBase?28:26;
+      const hits=[];
+      for(const e of state.enemies){
+        if(!e.alive)continue;
+        if(Math.hypot(e.x-hx,e.y-hy)<=r) hits.push(e);
+      }
+      if(hits.length){
+        hits.sort((a,b)=>b.progress-a.progress);
+        const limit=p.type==='laser'?1+(p.pierce||0):1;
+        for(let h=0;h<Math.min(limit,hits.length);h++) applyHit(hits[h],p,hx,hy);
+      } else {
+        createParticles(hx,hy,6,`rgb(${p.color[0]} ${p.color[1]} ${p.color[2]})`,.55);
+      }
+      if(p.type==='mortar') createParticles(hx,hy,16,'#ff8800',1);
+    } else {
+      p.x+=dx/d*step; p.y+=dy/d*step;
+      state.projectiles[pw++]=p;
+    }
+  }
+  state.projectiles.length=pw;
+
+  // Particles (in-place)
+  let parw=0;
+  for(let i=0;i<state.particles.length;i++){
+    const pt=state.particles[i];
+    pt.life-=dt; if(pt.life<=0)continue;
+    pt.x+=pt.vx*dt; pt.y+=pt.vy*dt; pt.vx*=.97; pt.vy*=.97; pt.vy+=38*dt;
+    state.particles[parw++]=pt;
+  }
+  state.particles.length=parw;
+
+  // Floating texts (in-place)
+  let txw=0;
+  for(let i=0;i<state.texts.length;i++){
+    const t2=state.texts[i];
+    t2.life-=dt; if(t2.life<=0)continue;
+    t2.y-=26*dt;
+    state.texts[txw++]=t2;
+  }
+  state.texts.length=txw;
+
+  // Enemies (in-place; dead ones drop out)
+  let enw=0;
+  for(let i=0;i<state.enemies.length;i++){
+    if(state.enemies[i].alive) state.enemies[enw++]=state.enemies[i];
+  }
+  state.enemies.length=enw;
+
+  // Drop stale global focus if the marked enemy died or leaked
+  if(state.priorityTargetId&&!state.enemies.some(e=>e.id===state.priorityTargetId&&e.alive)) state.priorityTargetId=null;
+
+  state.shake=Math.max(0,state.shake-dt*7);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RENDERING
+   ═══════════════════════════════════════════════════════════ */
+const canvas=document.getElementById('gameCanvas');
+const ctx=canvas.getContext('2d');
+
+function fitBoard(){
+  const box=document.getElementById('canvasBox'); const rect=box.getBoundingClientRect();
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  const vw=Math.max(2,rect.width), vh=Math.max(2,rect.height);
+  canvas.width=Math.max(2,Math.floor(vw*dpr)); canvas.height=Math.max(2,Math.floor(vh*dpr));
+  canvas.style.width='100%'; canvas.style.height='100%';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  const old={...state.board};
+  // Fixed reference cell size — always computed against the game's original 12x9
+  // grid, regardless of the actual map's gridW/gridH. Custom maps never shrink
+  // cells to fit; oversized maps scroll via a camera + minimap instead.
+  const cell=clamp(Math.floor(Math.min(vw/12,vh/9)),38,76);
+  const bw=cell*GRID_W,bh=cell*GRID_H;
+  const camX=Math.max(0,bw-vw), camY=Math.max(0,bh-vh);
+  state.camera.needsCam=camX>0||camY>0;
+  state.camera.x=clamp(state.camera.x,0,camX);
+  state.camera.y=clamp(state.camera.y,0,camY);
+  if(!state.camera.needsCam){ state.camera.x=0; state.camera.y=0; }
+  // Center the board on any axis that fits; pan only on overflowing axes.
+  const nx=camX>0?-state.camera.x:Math.floor((vw-bw)/2);
+  const ny=camY>0?-state.camera.y:Math.floor((vh-bh)/2);
+  state.board={x:nx,y:ny,w:bw,h:bh,cell,viewW:vw,viewH:vh};
+  if(old.cell&&old.cell!==cell) rescalePixelEntities(old,state.board);
+  else if(old.cell) translatePixelEntities(nx-old.x,ny-old.y);
+  syncAllEnemyPositions();
+  invalidateBackground();
+  updateMiniMapVisibility();
+  if(state.buildCell) layoutWheel();
+}
+
+/* Recomputes state.board.x/y from the current camera position (clamped to the
+   map's bounds) WITHOUT re-measuring the viewport or resizing the canvas —
+   cheap enough to call on every pan/drag/keystroke. */
+function updateCameraOffset(){
+  const b=state.board;
+  const oldX=b.x, oldY=b.y;
+  const camX=Math.max(0,b.w-b.viewW), camY=Math.max(0,b.h-b.viewH);
+  state.camera.needsCam=camX>0||camY>0;
+  state.camera.x=clamp(state.camera.x,0,camX);
+  state.camera.y=clamp(state.camera.y,0,camY);
+  b.x=camX>0?-state.camera.x:Math.floor((b.viewW-b.w)/2);
+  b.y=camY>0?-state.camera.y:Math.floor((b.viewH-b.h)/2);
+  const dx=b.x-oldX, dy=b.y-oldY;
+  if(dx||dy){
+    shiftWorldEntities(dx,dy);
+    syncAllEnemyPositions();
+    invalidateBackground();
+  }
+}
+
+/* Enemies derive their position from path distance, so only pixel-space
+   effects need shifting here. */
+function shiftWorldEntities(dx,dy){ translatePixelEntities(dx,dy); }
+
+function translatePixelEntities(dx,dy){
+  if(!dx&&!dy)return;
+  for(const p of state.projectiles){
+    p.x+=dx; p.y+=dy; p.tx+=dx; p.ty+=dy;
+    if(p.trail) for(const pt of p.trail){ pt[0]+=dx; pt[1]+=dy; }
+  }
+  for(const pt of state.particles){ pt.x+=dx; pt.y+=dy; }
+  for(const t of state.texts){ t.x+=dx; t.y+=dy; }
+  for(const t of state.towers){ if(t.laserBeam){ t.laserBeam.sx+=dx; t.laserBeam.sy+=dy; t.laserBeam.tx+=dx; t.laserBeam.ty+=dy; } }
+}
+
+/* Canvas resize with a different cell size: scale every pixel-space effect
+   (and its target point) around the old board origin. Enemies re-derive. */
+function rescalePixelEntities(old,now){
+  const s=old.cell?now.cell/old.cell:1;
+  const fx=x=>now.x+(x-old.x)*s, fy=y=>now.y+(y-old.y)*s;
+  for(const p of state.projectiles){
+    p.x=fx(p.x); p.y=fy(p.y); p.tx=fx(p.tx); p.ty=fy(p.ty);
+    if(p.trail) for(const pt of p.trail){ pt[0]=fx(pt[0]); pt[1]=fy(pt[1]); }
+  }
+  for(const pt of state.particles){ pt.x=fx(pt.x); pt.y=fy(pt.y); }
+  for(const t of state.texts){ t.x=fx(t.x); t.y=fy(t.y); }
+  for(const t of state.towers){ t.laserBeam=null; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MINIMAP — only shown for maps whose grid is larger than the
+   viewport (state.camera.needsCam). Freely draggable & resizable;
+   drag-to-navigate logic adapted from the reference file.
+   ═══════════════════════════════════════════════════════════ */
+const miniMapEl=document.getElementById('gameMiniMap');
+const miniMapCanvas=document.getElementById('miniMapCanvas');
+const miniMapCtx=miniMapCanvas.getContext('2d');
+
+function updateMiniMapVisibility(){
+  if(!state.camera.needsCam){ miniMapEl.style.display='none'; return; }
+  miniMapEl.style.display='block';
+  const boxRect=document.getElementById('canvasBox').getBoundingClientRect();
+  const mm=state.miniMap;
+  if(mm.x==null){ mm.x=Math.max(8,boxRect.width-mm.w-16); mm.y=Math.max(8,boxRect.height-mm.h-16); }
+  mm.x=clamp(mm.x,0,Math.max(0,boxRect.width-mm.w));
+  mm.y=clamp(mm.y,0,Math.max(0,boxRect.height-mm.h));
+  miniMapEl.style.left=mm.x+'px'; miniMapEl.style.top=mm.y+'px'; miniMapEl.style.width=mm.w+'px';
+  const headerH=miniMapEl.querySelector('.miniHeader').offsetHeight||20;
+  const cH=Math.max(60,mm.h-headerH);
+  if(miniMapCanvas.width!==mm.w||miniMapCanvas.height!==cH){ miniMapCanvas.width=mm.w; miniMapCanvas.height=cH; }
+}
+
+function drawMiniMap(){
+  if(!state.camera.needsCam||miniMapEl.style.display==='none')return;
+  const w=miniMapCanvas.width,h=miniMapCanvas.height;
+  const b=state.board;
+  const sx=w/b.w, sy=h/b.h;
+  const mctx=miniMapCtx;
+  mctx.clearRect(0,0,w,h);
+  mctx.fillStyle='rgba(8,13,22,.92)'; mctx.fillRect(0,0,w,h);
+  const mp=currentMap();
+  mctx.strokeStyle='rgba(180,180,180,.55)'; mctx.lineWidth=Math.max(2,b.cell*sx*.45); mctx.lineJoin='round'; mctx.lineCap='round';
+  mctx.beginPath();
+  mp.path.forEach(([x,y],i)=>{ const px=(x+.5)*b.cell*sx, py=(y+.5)*b.cell*sy; i?mctx.lineTo(px,py):mctx.moveTo(px,py); });
+  mctx.stroke();
+  for(const t of state.towers){
+    const c=towerCenterPx(t);
+    mctx.fillStyle=t.type==='superLaser'?'#00f0ff':'#7dffbb';
+    mctx.beginPath(); mctx.arc((c.x-b.x)*sx,(c.y-b.y)*sy,2.3,0,Math.PI*2); mctx.fill();
+  }
+  for(const en of state.enemies){
+    if(!en.alive)continue;
+    mctx.fillStyle=en.boss?'#ffd36b':'#fb7185';
+    mctx.beginPath(); mctx.arc((en.x-b.x)*sx,(en.y-b.y)*sy,en.boss?3.2:1.8,0,Math.PI*2); mctx.fill();
+  }
+  const basePos=basePosition();
+  mctx.fillStyle='#4ade80';
+  mctx.beginPath(); mctx.arc((basePos.x-b.x)*sx,(basePos.y-b.y)*sy,3.6,0,Math.PI*2); mctx.fill();
+  mctx.strokeStyle='#fff'; mctx.lineWidth=2;
+  const vx=clamp(-b.x,0,b.w), vy=clamp(-b.y,0,b.h);
+  const vw2=Math.max(0,Math.min(b.viewW,b.w-vx)), vh2=Math.max(0,Math.min(b.viewH,b.h-vy));
+  mctx.strokeRect(vx*sx,vy*sy,vw2*sx,vh2*sy);
+}
+
+function moveCameraByMini(mx,my){
+  const w=miniMapCanvas.width,h=miniMapCanvas.height;
+  const b=state.board;
+  const worldX=(mx/w)*b.w, worldY=(my/h)*b.h;
+  state.camera.x=worldX-b.viewW/2; state.camera.y=worldY-b.viewH/2;
+  updateCameraOffset();
+}
+
+let miniMapDragging=false, miniWidgetDrag=null, miniResizeDrag=null;
+miniMapCanvas.addEventListener('mousedown',e=>{
+  miniMapDragging=true;
+  const r=miniMapCanvas.getBoundingClientRect();
+  moveCameraByMini(e.clientX-r.left,e.clientY-r.top);
+});
+window.addEventListener('mousemove',e=>{
+  if(miniMapDragging){
+    const r=miniMapCanvas.getBoundingClientRect();
+    moveCameraByMini(e.clientX-r.left,e.clientY-r.top);
+  }
+  if(miniWidgetDrag){
+    const dx=e.clientX-miniWidgetDrag.x, dy=e.clientY-miniWidgetDrag.y;
+    state.miniMap.x=miniWidgetDrag.mmX+dx; state.miniMap.y=miniWidgetDrag.mmY+dy;
+    updateMiniMapVisibility();
+  }
+  if(miniResizeDrag){
+    const dx=e.clientX-miniResizeDrag.x, dy=e.clientY-miniResizeDrag.y;
+    state.miniMap.w=clamp(miniResizeDrag.mmW+dx,150,440);
+    state.miniMap.h=clamp(miniResizeDrag.mmH+dy,100,320);
+    updateMiniMapVisibility();
+  }
+});
+window.addEventListener('mouseup',()=>{ miniMapDragging=false; miniWidgetDrag=null; miniResizeDrag=null; });
+document.getElementById('miniHeaderDrag').addEventListener('mousedown',e=>{
+  e.stopPropagation();
+  miniWidgetDrag={x:e.clientX,y:e.clientY,mmX:state.miniMap.x,mmY:state.miniMap.y};
+});
+document.getElementById('miniResizeHandle').addEventListener('mousedown',e=>{
+  e.stopPropagation();
+  miniResizeDrag={x:e.clientX,y:e.clientY,mmW:state.miniMap.w,mmH:state.miniMap.h};
+});
+
+// Deterministic decoration placement (seeded by map id)
+function mapDecorations(mp){
+  const ps=pathSet(); const result=[];
+  let seed=mp.id.split('').reduce((a,c)=>a*31+c.charCodeAt(0),1);
+  const rng=()=>{ seed=(seed*1664525+1013904223)&0xffffffff; return (seed>>>0)/0xffffffff; };
+  for(let y=0;y<GRID_H;y++) for(let x=0;x<GRID_W;x++){
+    if(ps.has(`${x},${y}`))continue;
+    const r=rng(); if(r<.28) result.push({x,y,t:r,r2:rng(),r3:rng()});
+  }
+  return result;
+}
+const decoCache=new Map();
+function getDecos(mp){ if(!decoCache.has(mp.id)) decoCache.set(mp.id,mapDecorations(mp)); return decoCache.get(mp.id); }
+
+function drawDeco(c,mp,deco,cell){
+  const px=state.board.x+deco.x*cell+cell*.5, py=state.board.y+deco.y*cell+cell*.5;
+  if(state.towers.some(t=>towerOccupiesCell(t,deco.x,deco.y)))return;
+  c.save();
+  if(mp.deco==='forest'){
+    const sz=8+deco.r2*8; const angle=deco.r3*Math.PI*2;
+    c.translate(px,py); c.rotate(angle);
+    if(deco.t<.14){ // tree
+      c.fillStyle=`rgba(${30+deco.r2*20},${100+deco.r2*50},${40+deco.r2*20},.72)`;
+      c.beginPath(); c.moveTo(0,-sz*1.3); c.lineTo(-sz*.75,sz*.55); c.lineTo(sz*.75,sz*.55); c.closePath(); c.fill();
+      c.fillStyle=`rgba(${20+deco.r2*10},${70+deco.r2*30},${30},.85)`;
+      c.fillRect(-sz*.18,sz*.55,sz*.36,sz*.55);
+    } else { // rock
+      c.fillStyle=`rgba(60,80,70,.42)`;
+      c.beginPath(); c.ellipse(0,0,sz*.7,sz*.55,0,0,Math.PI*2); c.fill();
+    }
+  } else if(mp.deco==='desert'){
+    const sz=7+deco.r2*7;
+    c.translate(px,py);
+    if(deco.t<.10){ // cactus
+      c.fillStyle=`rgba(60,120,40,.65)`; c.fillRect(-sz*.22,-sz*1.2,sz*.44,sz*1.6);
+      c.fillRect(-sz*.7,-sz*.3,sz*.5,sz*.24); c.fillRect(sz*.22,-sz*.25,sz*.5,sz*.24);
+    } else { // rock/sand
+      c.fillStyle=`rgba(140,100,60,.28)`;
+      c.beginPath(); c.ellipse(0,0,sz*.9,sz*.55,deco.r3*Math.PI,0,Math.PI*2); c.fill();
+    }
+  } else if(mp.deco==='ice'){
+    const sz=7+deco.r2*9;
+    c.translate(px,py); c.rotate(deco.r3*Math.PI*.5);
+    c.fillStyle=`rgba(140,200,255,.22)`;
+    for(let i=0;i<6;i++){
+      const a=i*Math.PI/3; c.beginPath(); c.moveTo(0,0);
+      c.lineTo(Math.cos(a)*sz,Math.sin(a)*sz); c.lineTo(Math.cos(a+Math.PI/18)*sz*.6,Math.sin(a+Math.PI/18)*sz*.6);
+      c.closePath(); c.fill();
+    }
+  } else if(mp.deco==='volcano'){
+    const sz=8+deco.r2*9;
+    c.translate(px,py);
+    if(deco.t<.12){ // lava rock
+      c.fillStyle=`rgba(180,50,20,.38)`;
+      c.beginPath(); c.ellipse(0,0,sz*.8,sz*.6,deco.r3*Math.PI,0,Math.PI*2); c.fill();
+      c.fillStyle=`rgba(255,80,10,.18)`;
+      c.beginPath(); c.arc(0,0,sz*.35,0,Math.PI*2); c.fill();
+    } else {
+      c.fillStyle=`rgba(100,30,10,.25)`;
+      c.beginPath(); c.arc(0,0,sz*.6,0,Math.PI*2); c.fill();
+    }
+  }
+  c.restore();
+}
+
+/* Static scenery is expensive (grid + path glow + decorations) and only changes
+   when the map, camera or canvas size changes — so it is rendered once into an
+   offscreen canvas and blitted each frame. */
+let bgCache={ canvas:null, ctx:null, key:'' };
+function invalidateBackground(){ bgCache.key=''; }
+function bgKey(){
+  const b=state.board;
+  return [currentMap().id,b.x,b.y,b.cell,canvas.width,canvas.height,state.towersRev].join('|');
+}
+function drawBackgroundCached(){
+  const w=canvas.clientWidth,h=canvas.clientHeight,dpr=Math.min(window.devicePixelRatio||1,2);
+  if(!bgCache.canvas){
+    bgCache.canvas=document.createElement('canvas');
+    bgCache.ctx=bgCache.canvas.getContext('2d');
+  }
+  const key=bgKey();
+  if(bgCache.key!==key){
+    const cw=Math.max(2,Math.floor(w*dpr)), ch=Math.max(2,Math.floor(h*dpr));
+    if(bgCache.canvas.width!==cw||bgCache.canvas.height!==ch){ bgCache.canvas.width=cw; bgCache.canvas.height=ch; }
+    const c=bgCache.ctx;
+    c.setTransform(dpr,0,0,dpr,0,0);
+    c.clearRect(0,0,w,h);
+    drawBackground(c,w,h);
+    bgCache.key=key;
+  }
+  ctx.drawImage(bgCache.canvas,0,0,w,h);
+}
+
+function drawBackground(c,w,h){
+  const m=currentMap();
+  const g=c.createLinearGradient(0,0,w,h);
+  g.addColorStop(0,m.theme[0]); g.addColorStop(.45,m.theme[1]); g.addColorStop(1,m.theme[2]);
+  c.fillStyle=g; c.fillRect(0,0,w,h);
+
+  // Stars (static — the background is cached)
+  for(let i=0;i<50;i++){
+    const sx=(i*181+7)%w, sy=(i*97+13)%h;
+    c.globalAlpha=i%7===0?.16:.07; c.fillStyle=i%5===0?'#b8ffff':'#ffffff';
+    c.beginPath(); c.arc(sx,sy,i%3?1.1:1.7,0,Math.PI*2); c.fill();
+  }
+  c.globalAlpha=1;
+
+  const ps=pathSet(); const cell=state.board.cell;
+
+  // Grid cells
+  for(let y=0;y<GRID_H;y++) for(let x=0;x<GRID_W;x++){
+    const ip=ps.has(`${x},${y}`);
+    const px=state.board.x+x*cell,py=state.board.y+y*cell;
+    c.fillStyle=ip?m.roadFill:(x+y)%2===0?m.grassA:m.grassB;
+    c.fillRect(px,py,cell,cell);
+    if(ip){ // road edge highlight
+      c.fillStyle=m.roadEdge;
+      c.fillRect(px,py,cell,2); c.fillRect(px,py+cell-2,cell,2);
+      c.fillRect(px,py,2,cell); c.fillRect(px+cell-2,py,2,cell);
+    } else {
+      c.strokeStyle='rgba(255,255,255,.03)'; c.lineWidth=.5;
+      c.strokeRect(px+.25,py+.25,cell-.5,cell-.5);
+    }
+  }
+
+  // Decorations
+  for(const d of getDecos(m)) drawDeco(c,m,d,cell);
+
+  // Path glow
+  c.save(); c.shadowBlur=28; c.shadowColor=m.glow; c.fillStyle=m.glow;
+  for(const [x,y] of m.path){
+    const px=state.board.x+x*cell,py=state.board.y+y*cell;
+    c.fillRect(px+4,py+4,cell-8,cell-8);
+  }
+  c.restore();
+
+  // Path center line
+  const pts=pathPoints();
+  c.save(); c.strokeStyle='rgba(255,255,255,.07)'; c.lineWidth=Math.max(12,cell*.2); c.lineCap='round'; c.lineJoin='round';
+  c.beginPath(); pts.forEach((p,i)=>i?c.lineTo(p.x,p.y):c.moveTo(p.x,p.y)); c.stroke();
+  c.strokeStyle='rgba(255,255,255,.04)'; c.lineWidth=1.5; c.setLineDash([10,10]);
+  c.beginPath(); pts.forEach((p,i)=>i?c.lineTo(p.x,p.y):c.moveTo(p.x,p.y)); c.stroke();
+  c.restore();
+
+  // Start marker
+  const start=pts[0];
+  c.save(); c.shadowBlur=20; c.shadowColor='rgba(74,222,128,.5)'; c.fillStyle='#4ade80';
+  c.beginPath(); c.arc(start.x,start.y,9,0,Math.PI*2); c.fill();
+  c.fillStyle='rgba(255,255,255,.9)'; c.font='bold 10px system-ui'; c.textAlign='center'; c.textBaseline='middle';
+  c.fillText('出',start.x,start.y); c.restore();
+
+  // Map name badge (compact, so it doesn't hide the battlefield)
+  c.save();
+  const nameFont=`700 ${clamp(cell*.26,12,17)}px system-ui`;
+  c.font=nameFont;
+  const nameW=c.measureText(m.name).width;
+  const plateX=state.board.x+10, plateY=state.board.y+8;
+  c.fillStyle='rgba(4,10,18,.42)';
+  c.beginPath(); c.roundRect(plateX-6,plateY-4,nameW+20,26,9); c.fill();
+  c.fillStyle='rgba(255,255,255,.86)'; c.textAlign='left'; c.textBaseline='middle';
+  c.fillText(m.name,plateX+4,plateY+9);
+  c.restore();
+}
+
+function drawBase(){
+  const bpos=basePosition(); const b=state.base; const pct=b.hp/b.maxHp;
+  const t=performance.now()/1000; const pulse=1+Math.sin(t*1.8)*.05;
+  const col=pct>.6?'#ffd36b':pct>.3?'#ff9f43':'#ff6b6b';
+  ctx.save();
+  ctx.translate(bpos.x,bpos.y); ctx.scale(pulse,pulse);
+  ctx.shadowBlur=30; ctx.shadowColor=pct>.5?'rgba(255,211,107,.5)':'rgba(255,80,80,.5)';
+  // Outer ring
+  ctx.strokeStyle=col; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.arc(0,0,22,0,Math.PI*2); ctx.stroke();
+  // Inner fill
+  const g=ctx.createRadialGradient(0,0,4,0,0,20);
+  g.addColorStop(0,'rgba(255,240,180,.9)'); g.addColorStop(.5,col+'cc'); g.addColorStop(1,'rgba(20,14,6,.9)');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(0,0,19,0,Math.PI*2); ctx.fill();
+  // Castle icon
+  ctx.fillStyle='rgba(255,255,255,.9)'; ctx.font='bold 16px system-ui'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('🏰',0,0);
+  ctx.restore();
+  // HP bar above base
+  const bw=52; const bx=bpos.x-bw/2,by=bpos.y-34;
+  ctx.save();
+  ctx.fillStyle='rgba(0,0,0,.5)'; roundRect(ctx,bx-1,by-1,bw+2,9,4); ctx.fill();
+  ctx.fillStyle=pct>.6?'#4ade80':pct>.3?'#fbbf24':'#f87171';
+  roundRect(ctx,bx,by,bw*pct,7,3.5); ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.7)'; ctx.font='10px system-ui'; ctx.textAlign='center';
+  ctx.fillText(`Lv.${b.level}  ${Math.ceil(b.hp)}/${b.maxHp}`,bpos.x,by-5);
+  ctx.restore();
+}
+
+function roundRect(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.roundRect(x,y,w,h,r); }
+
+function hexPath(ctx,cx,cy,r){
+  ctx.beginPath();
+  for(let i=0;i<6;i++){const a=i*Math.PI/3-Math.PI/6;i?ctx.lineTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r):ctx.moveTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r);}
+  ctx.closePath();
+}
+
+function drawSuperLaser(t){
+  const cell=state.board.cell;
+  const cx=state.board.x+(t.x+1)*cell, cy=state.board.y+(t.y+1)*cell;
+  const sz=cell*0.88;
+  const sel=state.selectedTowerId===t.id;
+  const time=performance.now()/1000;
+  const charge=Math.max(0,1-t.cooldown/SUPERLASER_COOLDOWN);
+  const target=t.targetId?state.enemies.find(e=>e.id===t.targetId&&e.alive):null;
+  const aimAngle=t.facingAngle??Math.PI/2;
+
+  ctx.save(); ctx.translate(cx,cy); ctx.scale(towerSpawnScale(t),towerSpawnScale(t));
+
+  /* ── Laser beam (drawn first, behind everything) ── */
+  if(t.laserBeam&&t.laserBeam.life>0){
+    const bl=t.laserBeam, a=bl.life/bl.maxLife;
+    const dx2=bl.tx-cx,dy2=bl.ty-cy,len=Math.hypot(dx2,dy2),ang=Math.atan2(dy2,dx2);
+    ctx.save(); ctx.rotate(ang);
+    // Wide outer corona
+    const lg=ctx.createLinearGradient(0,0,len,0);
+    lg.addColorStop(0,`rgba(0,240,255,${a*.9})`); lg.addColorStop(.45,`rgba(200,255,255,${a})`); lg.addColorStop(1,'rgba(0,240,255,0)');
+    ctx.shadowBlur=50; ctx.shadowColor='rgba(0,240,255,.9)';
+    ctx.strokeStyle=lg; ctx.lineWidth=26; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(sz*.2,0); ctx.lineTo(len,0); ctx.stroke();
+    // Mid glow
+    ctx.strokeStyle=`rgba(160,255,255,${a*.8})`; ctx.lineWidth=12; ctx.shadowBlur=20;
+    ctx.beginPath(); ctx.moveTo(sz*.2,0); ctx.lineTo(len,0); ctx.stroke();
+    // Core white
+    ctx.strokeStyle=`rgba(255,255,255,${a})`; ctx.lineWidth=3.5; ctx.shadowBlur=0;
+    ctx.beginPath(); ctx.moveTo(sz*.2,0); ctx.lineTo(len,0); ctx.stroke();
+    ctx.restore();
+  }
+
+  /* ── Hexagonal platform ── */
+  ctx.shadowBlur=sel?32:20;
+  ctx.shadowColor=charge>.8?'rgba(0,240,255,.9)':'rgba(0,160,200,.5)';
+  hexPath(ctx,0,0,sz*.92);
+  ctx.fillStyle='rgba(8,18,34,.95)'; ctx.fill();
+  ctx.strokeStyle=sel?'rgba(0,240,255,.95)':'rgba(0,200,220,.55)';
+  ctx.lineWidth=2.5; ctx.stroke();
+  // Inner hex ring
+  ctx.shadowBlur=0; ctx.strokeStyle=`rgba(0,240,255,${.12+charge*.15})`; ctx.lineWidth=1.2;
+  hexPath(ctx,0,0,sz*.72); ctx.stroke();
+
+  /* ── Real charge progress ring (sweeps clockwise from top as it charges) ── */
+  ctx.save();
+  ctx.strokeStyle='rgba(255,255,255,.08)'; ctx.lineWidth=4; ctx.lineCap='round';
+  ctx.beginPath(); ctx.arc(0,0,sz*.99,-Math.PI/2,Math.PI*1.5,false); ctx.stroke();
+  if(charge>0.001){
+    ctx.strokeStyle=charge>=1?'rgba(125,255,187,.95)':'rgba(0,230,255,.9)';
+    ctx.shadowBlur=charge>=1?16:8; ctx.shadowColor=ctx.strokeStyle;
+    ctx.beginPath(); ctx.arc(0,0,sz*.99,-Math.PI/2,-Math.PI/2+Math.PI*2*charge,false); ctx.stroke();
+  }
+  ctx.restore();
+
+  /* ── Rotating energy rings ── */
+  for(let r=0;r<3;r++){
+    const rs=sz*(.38+r*.13); const ra=-time*(1.4-r*.4)+(r*Math.PI/3);
+    ctx.save(); ctx.rotate(ra);
+    ctx.strokeStyle=`rgba(0,${160+r*30},${220+r*12},${.14+charge*.22})`;
+    ctx.lineWidth=1.8+r*.4; ctx.setLineDash([rs*.42,rs*.28]);
+    ctx.beginPath(); ctx.arc(0,0,rs,0,Math.PI*2); ctx.stroke();
+    ctx.setLineDash([]); ctx.restore();
+  }
+
+  /* ── Core energy orb ── */
+  ctx.shadowBlur=charge>0.6?28:12; ctx.shadowColor=`rgba(0,240,255,${charge*.8})`;
+  const cg=ctx.createRadialGradient(-sz*.07,-sz*.07,sz*.03,0,0,sz*.28);
+  cg.addColorStop(0,'rgba(255,255,255,.96)'); cg.addColorStop(.38,`rgba(${80+charge*140},${200+charge*55},255,.92)`); cg.addColorStop(1,'rgba(0,60,120,.9)');
+  ctx.fillStyle=cg; ctx.beginPath(); ctx.arc(0,0,sz*.26,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle=`rgba(0,240,255,${.5+charge*.4})`; ctx.lineWidth=1.8;
+  ctx.beginPath(); ctx.arc(0,0,sz*.2,0,Math.PI*2); ctx.stroke();
+
+  /* ── Twin barrel assembly ── */
+  ctx.save(); ctx.rotate(aimAngle); ctx.shadowBlur=0;
+  const bw=sz*.15, bh=sz*.68;
+  for(const side of[-1,1]){
+    const bx2=side*(sz*.19);
+    // Barrel body gradient
+    const bg=ctx.createLinearGradient(bx2-bw*.5,0,bx2+bw*.5,0);
+    bg.addColorStop(0,'rgba(5,15,30,.98)'); bg.addColorStop(.4,`rgba(${30+charge*50},${120+charge*80},${160+charge*60},.9)`); bg.addColorStop(1,'rgba(5,15,30,.98)');
+    ctx.fillStyle=bg; ctx.beginPath(); ctx.roundRect(bx2-bw*.5,-bh,bw,bh,4); ctx.fill();
+    ctx.strokeStyle=`rgba(0,${180+charge*60},${220+charge*30},.7)`; ctx.lineWidth=1.4;
+    ctx.beginPath(); ctx.roundRect(bx2-bw*.5,-bh,bw,bh,4); ctx.stroke();
+    // Energy coil bands
+    for(let i=1;i<5;i++){
+      const cy2=-bh*(.15+i*.18);
+      ctx.strokeStyle=`rgba(0,${190+charge*50},255,${.25+charge*.35})`;
+      ctx.lineWidth=2.2; ctx.beginPath(); ctx.arc(bx2,cy2,bw*.6,0,Math.PI*2); ctx.stroke();
+    }
+    // Muzzle glow
+    const mg=ctx.createRadialGradient(bx2,-bh,1,bx2,-bh,sz*.14);
+    mg.addColorStop(0,`rgba(255,255,255,${charge*.7})`); mg.addColorStop(.4,`rgba(0,240,255,${charge*.5})`); mg.addColorStop(1,'rgba(0,240,255,0)');
+    ctx.fillStyle=mg; ctx.beginPath(); ctx.arc(bx2,-bh,sz*.14,0,Math.PI*2); ctx.fill();
+    // Muzzle cap
+    ctx.fillStyle=`rgba(0,${210+charge*45},255,${.6+charge*.3})`;
+    ctx.beginPath(); ctx.arc(bx2,-bh,sz*.055,0,Math.PI*2); ctx.fill();
+  }
+  // Center spine between barrels
+  const sg=ctx.createLinearGradient(-sz*.05,-bh*.8,sz*.05,-bh*.8);
+  sg.addColorStop(0,'rgba(0,200,230,.08)'); sg.addColorStop(.5,'rgba(0,240,255,.65)'); sg.addColorStop(1,'rgba(0,200,230,.08)');
+  ctx.fillStyle=sg; ctx.beginPath(); ctx.roundRect(-sz*.045,-bh*.78,sz*.09,bh*.42,2); ctx.fill();
+  // Muzzle bridge
+  ctx.fillStyle=`rgba(0,${170+charge*70},${210+charge*40},.8)`;
+  ctx.beginPath(); ctx.roundRect(-sz*.21-bw*.4,-bh-sz*.04,sz*.42+bw*.8,sz*.055,3); ctx.fill();
+  ctx.restore(); // aimAngle
+
+  /* ── MAX badge ── */
+  ctx.fillStyle='rgba(0,0,0,.82)'; ctx.beginPath(); ctx.arc(sz*.58,-sz*.58,11,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#00f0ff'; ctx.font='bold 8px system-ui'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('MAX',sz*.58,-sz*.58);
+
+  /* ── Targeting dashed line to current target ── */
+  if(target&&!t.laserBeam){
+    const dx2=target.x-cx,dy2=target.y-cy,len=Math.hypot(dx2,dy2);
+    const a2=Math.atan2(dy2,dx2);
+    ctx.save(); ctx.rotate(a2); ctx.strokeStyle='rgba(0,240,255,.22)'; ctx.lineWidth=1.5;
+    ctx.setLineDash([7,7]); ctx.beginPath(); ctx.moveTo(sz*.95,0); ctx.lineTo(len-14,0); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='rgba(0,240,255,.4)';
+    ctx.beginPath(); ctx.moveTo(len-6,0); ctx.lineTo(len-18,-5); ctx.lineTo(len-18,5); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  /* ── No-target label ── */
+  if(!target){
+    ctx.fillStyle=`rgba(255,200,0,${.55+.45*Math.sin(time*2.2)})`;
+    ctx.font='11px system-ui'; ctx.textAlign='center'; ctx.textBaseline='top';
+    ctx.fillText('待机中',0,sz+6);
+  }
+
+  ctx.restore(); // translate
+
+  /* ── Outer selection ring ── */
+  if(sel){
+    ctx.save(); ctx.strokeStyle='rgba(255,255,255,.82)'; ctx.lineWidth=2;
+    ctx.setLineDash([6,5]); ctx.beginPath(); ctx.arc(cx,cy,sz+10,0,Math.PI*2); ctx.stroke();
+    ctx.setLineDash([]); ctx.restore();
+  }
+}
+
+function drawTower(t){
+  const st=effectiveStats(t);
+  const type=TOWER_TYPES[t.type]||TOWER_TYPES.cannon;
+  const col=type.color||[255,255,255];
+  const c=towerCenterPx(t); const sel=state.selectedTowerId===t.id;
+  const cell=state.board.cell; const R=cell*.36;
+  const glow=`rgba(${col[0]},${col[1]},${col[2]},.55)`;
+  const pulse=1+Math.sin(performance.now()/240+t.level)*.02;
+  const spawnScale=towerSpawnScale(t);
+  const isMortar=t.type==='mortar', isLaser=t.type==='laser', isFrost=t.type==='frost';
+  const recoil=t.flash>0?(t.flash/.12)*R*.18:0;
+  ctx.save(); ctx.translate(c.x,c.y); ctx.scale(pulse*spawnScale,pulse*spawnScale);
+
+  // ground shadow
+  ctx.fillStyle='rgba(0,0,0,.38)';
+  ctx.beginPath(); ctx.ellipse(0,R*.45,R*.95,R*.4,0,0,Math.PI*2); ctx.fill();
+
+  // armored octagonal plate
+  ctx.beginPath();
+  for(let i=0;i<8;i++){
+    const a=Math.PI/8+i*Math.PI/4;
+    const px=Math.cos(a)*R, py=Math.sin(a)*R;
+    i?ctx.lineTo(px,py):ctx.moveTo(px,py);
+  }
+  ctx.closePath();
+  const topR=Math.min(255,Math.round(col[0]*.32+16)), topG=Math.min(255,Math.round(col[1]*.32+22)), topB=Math.min(255,Math.round(col[2]*.32+34));
+  const plate=ctx.createLinearGradient(0,-R,0,R);
+  plate.addColorStop(0,`rgb(${topR},${topG},${topB})`);
+  plate.addColorStop(.55,'rgb(17,25,40)');
+  plate.addColorStop(1,'rgb(7,11,19)');
+  ctx.fillStyle=plate;
+  ctx.shadowBlur=sel?24:10; ctx.shadowColor=glow; ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.strokeStyle=`rgba(${col[0]},${col[1]},${col[2]},.9)`; ctx.lineWidth=1.8; ctx.stroke();
+
+  // inner ring + level arc
+  ctx.strokeStyle=`rgba(${col[0]},${col[1]},${col[2]},.18)`; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.arc(0,0,R*.72,0,Math.PI*2); ctx.stroke();
+  const lvPct=Math.min(1,(t.level%10||10)/10);
+  ctx.strokeStyle=`rgba(${Math.min(255,col[0]+40)},${Math.min(255,col[1]+40)},${Math.min(255,col[2]+40)},.95)`;
+  ctx.lineWidth=2.4; ctx.lineCap='round';
+  ctx.beginPath(); ctx.arc(0,0,R*.86,-Math.PI/2,-Math.PI/2+Math.PI*2*lvPct); ctx.stroke();
+
+  // barrel
+  ctx.rotate(t.facingAngle??Math.PI/2);
+  const bw=R*(isMortar?.78:.62);
+  const bl=R*(isMortar?1.0:1.28)-recoil;
+  // rear counterweight
+  ctx.fillStyle='rgba(6,10,18,.95)';
+  ctx.beginPath(); ctx.roundRect(-bw*.78,R*.05,bw*1.56,R*.26,2); ctx.fill();
+  ctx.strokeStyle=`rgba(${col[0]},${col[1]},${col[2]},.55)`; ctx.lineWidth=1; ctx.stroke();
+  const bar=ctx.createLinearGradient(-bw/2,0,bw/2,0);
+  bar.addColorStop(0,'rgba(4,7,12,.9)');
+  bar.addColorStop(.18,`rgb(${Math.round(col[0]*.85)},${Math.round(col[1]*.85)},${Math.round(col[2]*.85)})`);
+  bar.addColorStop(.5,`rgb(${Math.min(255,col[0]+45)},${Math.min(255,col[1]+45)},${Math.min(255,col[2]+45)})`);
+  bar.addColorStop(.82,`rgb(${Math.round(col[0]*.85)},${Math.round(col[1]*.85)},${Math.round(col[2]*.85)})`);
+  bar.addColorStop(1,'rgba(4,7,12,.9)');
+  ctx.fillStyle=bar;
+  ctx.beginPath(); ctx.roundRect(-bw/2,-bl,bw,bl+R*.18,3); ctx.fill();
+  ctx.strokeStyle='rgba(0,0,0,.6)'; ctx.lineWidth=1; ctx.stroke();
+
+  // muzzle: type-specific tip
+  if(isFrost){
+    ctx.fillStyle='rgba(210,250,255,.95)';
+    ctx.beginPath(); ctx.moveTo(0,-bl-R*.16); ctx.lineTo(bw*.5,-bl); ctx.lineTo(0,-bl+R*.14); ctx.lineTo(-bw*.5,-bl); ctx.closePath(); ctx.fill();
+  }else if(isLaser){
+    ctx.shadowBlur=12; ctx.shadowColor=`rgba(${col[0]},${col[1]},${col[2]},.9)`;
+    ctx.fillStyle='rgba(255,255,255,.95)';
+    ctx.beginPath(); ctx.arc(0,-bl,bw*.32,0,Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0;
+  }else{
+    ctx.fillStyle=`rgba(${col[0]},${col[1]},${col[2]},.95)`;
+    ctx.beginPath(); ctx.roundRect(-bw*.62,-bl-3,bw*1.24,isMortar?7:5,2); ctx.fill();
+  }
+
+  // pivot cap
+  ctx.fillStyle='rgb(9,14,24)';
+  ctx.beginPath(); ctx.arc(0,0,R*.28,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle=`rgba(${col[0]},${col[1]},${col[2]},.85)`; ctx.lineWidth=1.4; ctx.stroke();
+  ctx.fillStyle=`rgba(${col[0]},${col[1]},${col[2]},.9)`;
+  ctx.beginPath(); ctx.arc(0,0,R*.09,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  if(sel){
+    ctx.save(); ctx.strokeStyle='rgba(255,255,255,.8)'; ctx.lineWidth=1.8; ctx.setLineDash([5,5]);
+    ctx.beginPath(); ctx.arc(c.x,c.y,st.range*cell,0,Math.PI*2); ctx.stroke(); ctx.restore();
+  }
+  if(t.flash>0){
+    ctx.save(); ctx.globalAlpha=Math.min(1,t.flash/.12)*.75; ctx.fillStyle='#fff7c8';
+    ctx.beginPath(); ctx.arc(c.x,c.y-R*1.5,5,0,Math.PI*2); ctx.fill(); ctx.restore();
+  }
+  if(t.level>1){
+    ctx.save(); ctx.fillStyle='rgba(0,0,0,.72)';
+    ctx.beginPath(); ctx.arc(c.x+R*.8,c.y-R*.8,9,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#ffd36b'; ctx.font='bold 9px system-ui'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(t.level,c.x+R*.8,c.y-R*.8); ctx.restore();
+  }
+}
+
+function drawEnemy(e){
+  const boss=!!e.boss; const r=e.radius||(boss?28:14);
+  const col=boss?(e.bossColor||[255,209,107]):(e.color||[255,127,103]);
+  const hpPct=clamp(e.hp/e.maxHp,0,1);
+  const slowed=e.slowTimer>0;
+  const baseRGB=`${col[0]},${col[1]},${col[2]}`;
+  const light=`rgb(${Math.min(255,col[0]+45)},${Math.min(255,col[1]+45)},${Math.min(255,col[2]+45)})`;
+  const dark=`rgb(${Math.round(col[0]*.42)},${Math.round(col[1]*.42)},${Math.round(col[2]*.42)})`;
+  ctx.save(); ctx.translate(e.x,e.y);
+  const pulse=1+Math.sin(performance.now()/160+e.progress*14)*(boss?.045:.025);
+  ctx.scale(pulse,pulse);
+  ctx.shadowBlur=boss?26:10; ctx.shadowColor=`rgba(${baseRGB},.55)`;
+  const g=ctx.createLinearGradient(0,-r,0,r);
+  g.addColorStop(0,light); g.addColorStop(.55,`rgb(${baseRGB})`); g.addColorStop(1,dark);
+  ctx.fillStyle=g;
+  if(e.typeId==='swarmling'){
+    ctx.beginPath(); ctx.moveTo(0,-r*1.15); ctx.lineTo(r*.82,0); ctx.lineTo(0,r*1.15); ctx.lineTo(-r*.82,0); ctx.closePath(); ctx.fill();
+  } else {
+    ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill();
+  }
+  ctx.shadowBlur=0;
+  ctx.strokeStyle='rgba(6,10,18,.72)'; ctx.lineWidth=1.6; ctx.stroke();
+
+  // highlight
+  ctx.fillStyle='rgba(255,255,255,.16)';
+  ctx.beginPath(); ctx.ellipse(-r*.3,-r*.42,r*.42,r*.26,-.5,0,Math.PI*2); ctx.fill();
+
+  // eye + glint
+  ctx.fillStyle='rgba(8,12,20,.82)';
+  ctx.beginPath(); ctx.arc(r*.26,-r*.1,r*.24,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.92)';
+  ctx.beginPath(); ctx.arc(r*.32,-r*.18,r*.09,0,Math.PI*2); ctx.fill();
+
+  // armor plating
+  if((e.armor||0)>=.2){
+    ctx.strokeStyle=`rgba(190,235,255,${.25+(e.armor||0)*.6})`; ctx.lineWidth=2;
+    ctx.setLineDash([r*.5,r*.34]);
+    ctx.beginPath(); ctx.arc(0,0,r+4,0,Math.PI*2); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  if(slowed){
+    ctx.strokeStyle='rgba(150,235,255,.8)'; ctx.lineWidth=1.6;
+    ctx.beginPath(); ctx.arc(0,0,r+1.5,0,Math.PI*2); ctx.stroke();
+  }
+  if(e.hitFlash>0){
+    ctx.globalAlpha=Math.min(.65,e.hitFlash/.14*.55);
+    ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=1;
+  }
+  if(boss){
+    ctx.strokeStyle=`rgba(${baseRGB},.85)`; ctx.lineWidth=2.6;
+    ctx.beginPath(); ctx.arc(0,0,r+5,0,Math.PI*2); ctx.stroke();
+    ctx.strokeStyle=e.rage?'rgba(255,70,110,.95)':'rgba(255,255,255,.35)';
+    ctx.lineWidth=3;
+    ctx.beginPath(); ctx.arc(0,0,r+11,-Math.PI/2,-Math.PI/2+Math.PI*1.4); ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,.92)'; ctx.font='15px system-ui'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(e.icon||'👑',0,-r*.55);
+  }
+  ctx.restore();
+
+  // HP bar
+  const hw=boss?70:Math.max(24,Math.round(r*2.1));
+  const bx2=e.x-hw/2, by2=e.y-r-13;
+  ctx.save();
+  ctx.fillStyle='rgba(0,0,0,.55)'; ctx.fillRect(bx2-1,by2-1,hw+2,5);
+  ctx.fillStyle=boss?`rgb(${baseRGB})`:(hpPct<.35?'#fbbf24':slowed?'#67e8f9':'#fb7185');
+  ctx.fillRect(bx2,by2,hw*hpPct,3);
+  ctx.restore();
+  if(boss&&e.bossTypeName){
+    ctx.save(); ctx.fillStyle='rgba(255,255,255,.82)'; ctx.font='bold 10px system-ui'; ctx.textAlign='center';
+    ctx.fillText(`${e.bossTypeName} ${Math.ceil(e.hp)}`,e.x,e.y-r-20); ctx.restore();
+  }
+  if(state.priorityTargetId===e.id){
+    const t2=performance.now()/1000; const pr=r+8+Math.sin(t2*4)*2;
+    ctx.save(); ctx.translate(e.x,e.y); ctx.rotate(t2*1.8);
+    ctx.strokeStyle='rgba(255,140,0,.95)'; ctx.lineWidth=2.4; ctx.shadowBlur=14; ctx.shadowColor='rgba(255,140,0,.7)';
+    for(let i=0;i<4;i++){
+      const a0=i*Math.PI/2;
+      ctx.beginPath(); ctx.arc(0,0,pr,a0,a0+Math.PI/4); ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
+function drawProjectile(p){
+  const col=p.color;
+  ctx.save(); ctx.shadowBlur=p.type==='laser'?22:16; ctx.shadowColor=`rgba(${col[0]},${col[1]},${col[2]},.65)`;
+  if(p.trail.length>1){
+    ctx.strokeStyle=`rgba(${col[0]},${col[1]},${col[2]},.22)`;
+    ctx.lineWidth=p.type==='laser'?5:p.type==='mortar'?4:3; ctx.lineCap='round';
+    ctx.beginPath(); p.trail.forEach((pt,i)=>i?ctx.lineTo(pt[0],pt[1]):ctx.moveTo(pt[0],pt[1])); ctx.stroke();
+  }
+  const r=p.type==='laser'?4.5:p.type==='mortar'?5.5:p.isBase?4.2:4.2;
+  const grd=ctx.createRadialGradient(p.x-2,p.y-2,1,p.x,p.y,r+3);
+  grd.addColorStop(0,'rgba(255,255,255,.95)'); grd.addColorStop(.5,`rgb(${col[0]},${col[1]},${col[2]})`); grd.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.fillStyle=grd; ctx.beginPath(); ctx.arc(p.x,p.y,r,0,Math.PI*2); ctx.fill(); ctx.restore();
+}
+
+function drawParticle(pt){ const a=Math.max(0,Math.min(1,pt.life/pt.maxLife)); ctx.save(); ctx.globalAlpha=a; ctx.fillStyle=pt.color; ctx.beginPath(); ctx.arc(pt.x,pt.y,pt.size*(.7+(1-a)*.8),0,Math.PI*2); ctx.fill(); ctx.restore(); }
+function drawText(t){
+  const a=Math.max(0,Math.min(1,t.life/t.maxLife));
+  ctx.save(); ctx.globalAlpha=a; ctx.fillStyle=t.color;
+  ctx.font=`${t.big?'800 18px':'bold 13px'} system-ui`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.shadowBlur=t.big?10:4; ctx.shadowColor='rgba(0,0,0,.55)';
+  ctx.fillText(t.text,t.x,t.y);
+  ctx.restore();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   BUILD WHEEL — 点按空地时在格子旁边弹出一个半圆建造盘
+   （类似《保卫萝卜》的建造轮盘）。建造不再依赖右侧预先选中
+   的塔种，右侧列表只做炮台资料介绍。
+   ═══════════════════════════════════════════════════════════ */
+const wheelEl=document.getElementById('buildWheel');
+const wheelItemsEl=document.getElementById('wheelItems');
+const wheelDiscEl=document.getElementById('wheelDisc');
+const wheelArcEl=document.getElementById('wheelArc');
+const wheelCloseEl=document.getElementById('wheelClose');
+const stageCardEl=document.getElementById('stageCard');
+
+function buildableTowerKeys(){
+  return Object.keys(TOWER_TYPES).filter(k=>!TOWER_TYPES[k].__modId||state.activeMods.has(TOWER_TYPES[k].__modId));
+}
+
+function layoutWheel(){
+  if(!state.buildCell)return;
+  const stageRect=stageCardEl.getBoundingClientRect();
+  const cell=state.board.cell;
+  const [gx,gy]=state.buildCell;
+  const cr=canvas.getBoundingClientRect();
+  const originX=stageRect.left+stageCardEl.clientLeft;
+  const originY=stageRect.top+stageCardEl.clientTop;
+  const relX=(cr.left-originX)+state.board.x+(gx+.5)*cell;
+  const relY=(cr.top-originY)+state.board.y+(gy+.5)*cell;
+  const w=stageRect.width,h=stageRect.height;
+  const itemR=30;
+  const n=Math.max(1,wheelItemsEl.children.length);
+  const R=Math.min(clamp(cell*1.5,100,146),Math.max(84,h*.38));
+  // 上/下半圆：上方空间不够就翻到下方
+  const up=relY>=R+itemR+16;
+  let cx=relX,cy=relY;
+  if(w-R-itemR-8>R+itemR+8){ cx=clamp(relX,R+itemR+8,w-R-itemR-8); }
+  cy = up ? Math.max(relY,R+itemR+16) : Math.min(relY,h-R-itemR-16);
+  cy = clamp(cy,itemR+8,Math.max(itemR+8,h-itemR-8));
+  wheelEl.style.left=cx+'px';
+  wheelEl.style.top=cy+'px';
+  const D=2*(R+34);
+  wheelDiscEl.style.width=D+'px'; wheelDiscEl.style.height=D+'px';
+  wheelDiscEl.style.left=(-D/2)+'px'; wheelDiscEl.style.top=(-D/2)+'px';
+  wheelDiscEl.classList.toggle('up',up); wheelDiscEl.classList.toggle('down',!up);
+  const A=2*R;
+  wheelArcEl.style.width=A+'px'; wheelArcEl.style.height=A+'px';
+  wheelArcEl.style.left=(-A/2)+'px'; wheelArcEl.style.top=(-A/2)+'px';
+  wheelArcEl.classList.toggle('up',up); wheelArcEl.classList.toggle('down',!up);
+  const spread=n<=1?0:Math.min(168,24*n+20);
+  const base=up?-90:90;
+  const start=base-spread/2;
+  const step=n<=1?0:spread/(n-1);
+  const items=[...wheelItemsEl.children];
+  items.forEach((el,i)=>{
+    const a=(start+step*i)*Math.PI/180;
+    el.style.left=(Math.cos(a)*R).toFixed(1)+'px';
+    el.style.top=(Math.sin(a)*R).toFixed(1)+'px';
+  });
+}
+
+function openBuildWheel(gx,gy){
+  const keys=buildableTowerKeys();
+  if(!keys.length){ setMsg('当前没有可建造的炮台。'); return; }
+  // 打开建造盘 = 回到“没有选中任何炮台”的状态，避免旧射程圈残留
+  if(state.selectedTowerId!=null){ state.selectedTowerId=null; state.towersRev++; renderStatic(); }
+  state.buildCell=[gx,gy];
+  wheelItemsEl.innerHTML=keys.map((k,i)=>{
+    const t=TOWER_TYPES[k];
+    const col=t.color||[200,200,200];
+    const rgb=`rgb(${col[0]},${col[1]},${col[2]})`;
+    return `<button class="wheelItem" data-build="${k}" style="border-color:${rgb}99;box-shadow:0 8px 24px rgba(0,0,0,.5),0 0 0 1px ${rgb}22 inset;animation-delay:${i*16}ms">
+      <span class="wiIcon">${t.icon||'⬡'}</span>
+      <span class="wiName">${t.name}</span>
+      <span class="wiCost">${t.cost}</span>
+    </button>`;
+  }).join('');
+  layoutWheel();
+  refreshWheelAffordability();
+  wheelEl.classList.add('show');
+  sfx('click');
+}
+
+function closeBuildWheel(){
+  if(!state.buildCell)return;
+  state.buildCell=null;
+  wheelEl.classList.remove('show');
+}
+
+function refreshWheelAffordability(){
+  if(!state.buildCell)return;
+  for(const btn of wheelItemsEl.querySelectorAll('[data-build]')){
+    const t=TOWER_TYPES[btn.dataset.build]; if(!t)continue;
+    btn.classList.toggle('poor',state.gold<t.cost);
+  }
+}
+
+wheelItemsEl.addEventListener('click',e=>{
+  const btn=e.target.closest('[data-build]'); if(!btn)return;
+  const cell=state.buildCell; if(!cell)return;
+  if(placeTower(cell[0],cell[1],btn.dataset.build)) closeBuildWheel();
+});
+wheelCloseEl.addEventListener('click',e=>{ e.stopPropagation(); closeBuildWheel(); });
+
+/* 屏幕上闪烁的“已选中格子”标记（轮盘可能因靠近边缘而偏移）。 */
+function drawWheelAnchor(){
+  if(!state.buildCell||state.overlayMode!=='none'||state.gameOver)return;
+  const [gx,gy]=state.buildCell; const cell=state.board.cell;
+  const x=state.board.x+gx*cell, y=state.board.y+gy*cell;
+  const t=performance.now()/1000;
+  ctx.save();
+  ctx.globalAlpha=.32+.18*Math.sin(t*4);
+  ctx.fillStyle='rgba(110,231,255,.32)';
+  roundRect(ctx,x+2,y+2,cell-4,cell-4,9); ctx.fill();
+  ctx.globalAlpha=1;
+  ctx.strokeStyle='rgba(110,231,255,.92)'; ctx.lineWidth=2.2; ctx.shadowBlur=14; ctx.shadowColor='rgba(110,231,255,.6)';
+  roundRect(ctx,x+2,y+2,cell-4,cell-4,9); ctx.stroke();
+  ctx.shadowBlur=0;
+  ctx.fillStyle='rgba(235,250,255,.92)';
+  ctx.font=`800 ${clamp(cell*.34,13,22)}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('+',x+cell/2,y+cell/2);
+  ctx.restore();
+}
+
+function render(){
+  const w=canvas.clientWidth,h=canvas.clientHeight;
+  const ox=state.shake>0?(Math.random()-.5)*state.shake*2:0;
+  const oy=state.shake>0?(Math.random()-.5)*state.shake*2:0;
+  ctx.save(); ctx.clearRect(0,0,w,h); ctx.translate(ox,oy);
+  drawBackgroundCached();
+  drawBase();
+  drawWheelAnchor();
+  for(const p of state.projectiles) drawProjectile(p);
+  for(const t of state.towers){
+    const ttype=TOWER_TYPES[t.type];
+    if(t.type==='superLaser') drawSuperLaser(t);
+    else if(typeof ttype?.customDraw==='function') ttype.customDraw(ctx,t,{cellCenter,towerCenterPx,board:state.board,stats:effectiveStats(t),time:performance.now()/1000});
+    else if(ttype?.size===2) drawBigTower(t);
+    else drawTower(t);
+  }
+  for(const e of state.enemies) if(e.alive) drawEnemy(e);
+  for(const p of state.particles) drawParticle(p);
+  for(const t of state.texts) drawText(t);
+
+  // Base-hit red vignette
+  if(state.baseFlash>0){
+    const a=Math.min(.4,state.baseFlash*.7);
+    const vg=ctx.createRadialGradient(w/2,h/2,Math.min(w,h)*.22,w/2,h/2,Math.max(w,h)*.62);
+    vg.addColorStop(0,'rgba(255,40,40,0)'); vg.addColorStop(1,`rgba(255,40,40,${a})`);
+    ctx.fillStyle=vg; ctx.fillRect(0,0,w,h);
+  }
+
+  if(state.paused&&!state.gameOver){
+    ctx.save(); ctx.fillStyle='rgba(4,10,18,.42)'; ctx.fillRect(0,0,w,h);
+    ctx.fillStyle='rgba(223,243,255,.94)'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.font=`800 ${clamp(state.board.cell*.7,22,40)}px system-ui`;
+    ctx.fillText('已暂停',w/2,h/2-12);
+    ctx.font='13px system-ui'; ctx.fillStyle='rgba(223,243,255,.65)';
+    ctx.fillText('按 P 或点击「继续」恢复',w/2,h/2+24);
+    ctx.restore();
+  }
+  if(state.gameOver){
+    ctx.save(); ctx.fillStyle='rgba(0,0,0,.62)'; ctx.fillRect(0,0,w,h);
+    ctx.fillStyle='#ff6b6b'; ctx.font=`bold ${clamp(state.board.cell*.8,28,52)}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('基地陷落',w/2,h/2-30);
+    ctx.fillStyle='rgba(255,255,255,.85)'; ctx.font='15px system-ui';
+    ctx.fillText(`守住 ${Math.max(0,state.wave-1)} 波 · 击杀 ${state.waveKilled} 个敌人`,w/2,h/2+10);
+    ctx.fillStyle='rgba(255,255,255,.6)'; ctx.font='14px system-ui';
+    ctx.fillText('点击画面重开',w/2,h/2+44);
+    ctx.restore();
+  }
+  ctx.restore();
+  updateTopStats();
+  updateLiveOverlay();
+  updateWavePanel();
+  drawMiniMap();
+}
+
+function towerOccupiesCell(t,cx,cy){
+  return towerFootprint(t).some(([fx,fy])=>fx===cx&&fy===cy);
+}
+
+/* Per-frame patch of the sidebar wave panel + start button label. */
+function updateWavePanel(){
+  const tag=document.getElementById('waveTag');
+  const bar=document.getElementById('waveProgress');
+  const line=document.getElementById('waveStatLine');
+  const tagText=state.gameOver?'已结束':state.paused?'已暂停':state.waveState==='spawning'?'进行中':state.waveState==='cleared'?'结算中':'准备中';
+  if(tag&&state._uiCache.waveTag!==tagText){
+    state._uiCache.waveTag=tagText;
+    tag.textContent=tagText;
+    tag.style.color=tagText==='进行中'?'var(--amber)':tagText==='已结束'?'var(--rose)':'var(--muted)';
+  }
+  let pct=0;
+  if(state.waveState==='spawning'&&state.waveTotal>0){
+    pct=clamp((state.waveKilled+state.waveLeaked)/state.waveTotal,0,1);
+  }
+  if(bar) bar.style.width=`${(pct*100).toFixed(1)}%`;
+  if(line){
+    let text='';
+    if(state.waveState==='spawning') text=`已出战 ${state.waveSpawned}/${state.waveTotal} · 击杀 ${state.waveKilled} · 漏怪 ${state.waveLeaked}`;
+    else if(state.waveState==='ready'&&state.autoWave) text=`自动开波倒计时 ${Math.max(0,state.autoTimer).toFixed(1)}s`;
+    else if(state.waveState==='ready') text=`第 ${state.wave} 波 · 点击「开始下一波」或按空格`;
+    if(line.textContent!==text) line.textContent=text;
+  }
+  const startBtn=document.getElementById('startBtn');
+  if(startBtn){
+    const label=state.gameOver?'已结束':state.waveState==='spawning'?'波次进行中':
+      (state.autoWave&&state.waveState==='ready'?`下一波 ${Math.max(0,state.autoTimer).toFixed(1)}s`:'开始下一波');
+    if(startBtn.textContent!==label) startBtn.textContent=label;
+    startBtn.disabled=state.paused||state.gameOver||state.waveState!=='ready';
+  }
+}
+
+/* Generic 2×2 footprint renderer for modded "big" towers without a customDraw.
+   Simpler sibling of drawSuperLaser — single barrel, hex base, color-driven. */
+function drawBigTower(t){
+  const c=towerCenterPx(t); const sz=state.board.cell*0.86;
+  const col=TOWER_TYPES[t.type].color||[200,200,200];
+  const sel=state.selectedTowerId===t.id;
+  const st=effectiveStats(t);
+  ctx.save(); ctx.translate(c.x,c.y); ctx.scale(towerSpawnScale(t),towerSpawnScale(t));
+  ctx.shadowBlur=sel?26:14; ctx.shadowColor=`rgba(${col[0]},${col[1]},${col[2]},.5)`;
+  hexPath(ctx,0,0,sz*.9);
+  const bg=ctx.createRadialGradient(0,0,4,0,0,sz*.9);
+  bg.addColorStop(0,'rgba(255,255,255,.9)'); bg.addColorStop(.5,`rgba(${col[0]},${col[1]},${col[2]},.85)`); bg.addColorStop(1,'rgba(10,14,24,.95)');
+  ctx.fillStyle=bg; ctx.fill();
+  ctx.strokeStyle=sel?'rgba(255,255,255,.9)':`rgba(${col[0]},${col[1]},${col[2]},.6)`; ctx.lineWidth=2.2; ctx.stroke();
+  ctx.fillStyle='rgba(13,17,28,.95)'; ctx.beginPath(); ctx.arc(0,0,sz*.4,0,Math.PI*2); ctx.fill();
+  ctx.rotate(t.facingAngle??Math.PI/2);
+  const bw=sz*.18,bh=sz*.62;
+  const bar=ctx.createLinearGradient(-bw/2,-bh,bw/2,0);
+  bar.addColorStop(0,'rgba(255,255,255,.95)'); bar.addColorStop(.4,`rgba(${col[0]},${col[1]},${col[2]},.95)`); bar.addColorStop(1,'rgba(17,24,39,.98)');
+  ctx.fillStyle=bar; ctx.fillRect(-bw/2,-bh,bw,bh);
+  ctx.restore();
+  if(sel){ctx.save();ctx.strokeStyle='rgba(255,255,255,.8)';ctx.lineWidth=1.8;ctx.setLineDash([5,5]);ctx.beginPath();ctx.arc(c.x,c.y,st.range*state.board.cell,0,Math.PI*2);ctx.stroke();ctx.restore();}
+  if(t.level>1){ctx.save();ctx.fillStyle='rgba(0,0,0,.7)';ctx.beginPath();ctx.arc(c.x+sz*.7,c.y-sz*.7,9,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ffd36b';ctx.font='bold 9px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(t.level,c.x+sz*.7,c.y-sz*.7);ctx.restore();}
+}
+
+/* Patches a few live numbers inside the superLaser overlay panel each frame
+   (charge ring, target HP) instead of rebuilding the whole panel — keeps the
+   progress bar genuinely live instead of a frozen snapshot. */
+function updateLiveOverlay(){
+  if(!overlay.classList.contains('show')||state.overlayMode!=='tower')return;
+  const t=state.towers.find(x=>x.id===state.selectedTowerId);
+  if(!t||t.type!=='superLaser')return;
+  const fill=document.getElementById('slChargeFill'); if(!fill)return;
+  const charge=Math.max(0,1-t.cooldown/SUPERLASER_COOLDOWN);
+  fill.style.width=`${charge*100}%`;
+  const label=document.getElementById('slChargeLabel'); if(label) label.textContent=`充能进度 ${Math.round(charge*100)}%`;
+  const target=t.targetId?state.enemies.find(e=>e.id===t.targetId&&e.alive):null;
+  const hadTarget=!!t._overlayHadTarget;
+  if(!!target!==hadTarget){ t._overlayHadTarget=!!target; renderOverlay(t.id); return; }
+  if(target){
+    const hpFill=document.getElementById('slTargetHpFill');
+    if(hpFill) hpFill.style.width=`${(target.hp/target.maxHp)*100}%`;
+    const hpLabel=document.getElementById('slTargetHpLabel');
+    if(hpLabel) hpLabel.textContent=`HP：${Math.ceil(target.hp)} / ${target.maxHp}`;
+    const progLabel=document.getElementById('slTargetProgressLabel');
+    if(progLabel) progLabel.textContent=`进度 ${Math.round(target.progress*100)}%`;
+  }
+}
+
+/* Retriggers a CSS pop animation on an element (removes+reflows+re-adds the
+   class so repeated rapid changes each get their own visible pulse). */
+function pulseStat(el,dir){
+  if(!el)return;
+  el.classList.remove('statPopUp','statPopDown');
+  void el.offsetWidth; // force reflow so the re-added class restarts the animation
+  el.classList.add(dir>0?'statPopUp':'statPopDown');
+}
+
+/* Patches the top stat bar (gold / HP / skill points / wave / enemy count)
+   every frame so gold ticks up the instant a kill lands, instead of waiting
+   for the next full renderStatic() rebuild. Cheap textContent-only diffing —
+   safe to call 60×/sec. */
+function updateTopStats(){
+  const c=state._uiCache;
+  if(state.gold!==c.gold){
+    const dir=c.gold==null?0:(state.gold>c.gold?1:-1); const prev=c.gold;
+    c.gold=state.gold; const el=document.getElementById('statGold');
+    if(el){ el.textContent=state.gold; if(prev!=null)pulseStat(el,dir); }
+    refreshWheelAffordability();
+  }
+  const hpCeil=Math.ceil(state.base.hp);
+  if(hpCeil!==c.hp||c.hpMax!==state.base.maxHp){
+    const dir=c.hp==null?0:(hpCeil>c.hp?1:-1); const prev=c.hp;
+    c.hp=hpCeil; c.hpMax=state.base.maxHp; const el=document.getElementById('statHp');
+    if(el){ el.textContent=`${hpCeil}/${state.base.maxHp}`; if(prev!=null&&hpCeil!==prev)pulseStat(el,dir); }
+  }
+  // Live base HP readout in the sidebar (keeps the regen tick visible between
+  // the otherwise event-driven renderStatic() rebuilds).
+  if(hpCeil!==c.baseHpShown||c.baseHpMaxShown!==state.base.maxHp){
+    c.baseHpShown=hpCeil; c.baseHpMaxShown=state.base.maxHp;
+    const pct=state.base.hp/state.base.maxHp;
+    const fill=document.getElementById('baseHpFill');
+    if(fill) fill.style.width=`${pct*100}%`;
+    const txt=document.getElementById('baseHpText');
+    if(txt){
+      txt.textContent=`${hpCeil}/${state.base.maxHp}`;
+      txt.style.color=pct>.6?'#4ade80':pct>.3?'#fbbf24':'#f87171';
+    }
+  }
+  const regenNow=baseRegenPerSec();
+  if(regenNow!==c.regenShown){
+    c.regenShown=regenNow;
+    const rtxt=document.getElementById('baseRegenText');
+    if(rtxt){
+      rtxt.textContent=regenNow>0?`+${regenNow.toFixed(1)} HP/秒`:'未解锁';
+      rtxt.style.color=regenNow>0?'var(--green)':'rgba(255,255,255,.35)';
+    }
+  }
+  if(state.skillPoints!==c.skillPoints){
+    const dir=c.skillPoints==null?0:(state.skillPoints>c.skillPoints?1:-1); const prev=c.skillPoints;
+    c.skillPoints=state.skillPoints; const el=document.getElementById('statSp');
+    if(el){ el.textContent=state.skillPoints; if(prev!=null)pulseStat(el,dir); }
+  }
+  if(state.wave!==c.wave){
+    const prev=c.wave; c.wave=state.wave; const el=document.getElementById('statWave');
+    if(el){ el.textContent=state.wave; if(prev!=null)pulseStat(el,1); }
+  }
+  let ec=0;
+  for(const e of state.enemies) if(e.alive) ec++;
+  if(ec!==c.enemyCount){
+    c.enemyCount=ec;
+    const el=document.getElementById('statEnemyCount'); if(el)el.textContent=ec;
+    const el2=document.getElementById('statRemain'); if(el2)el2.textContent=ec;
+  }
+  const kt=codexKillTotal();
+  if(kt!==c.codexKills){
+    c.codexKills=kt;
+    const el=document.getElementById('codexSummary');
+    if(el) el.textContent=codexSummaryText();
+  }
+}
+
+/* 拖动松手后的镜头惯性（触屏/鼠标都能“滑”一下）。 */
+function stepCameraMomentum(dt){
+  const c=state.camera;
+  if(!c.needsCam||boardDragging)return;
+  if(!c.vx&&!c.vy)return;
+  const tx=c.x+c.vx*dt, ty=c.y+c.vy*dt;
+  c.x=tx; c.y=ty; updateCameraOffset();
+  if(Math.abs(c.x-tx)>.5) c.vx=0;   // 撞到地图边界就停下
+  if(Math.abs(c.y-ty)>.5) c.vy=0;
+  const decay=Math.exp(-6*dt);
+  c.vx*=decay; c.vy*=decay;
+  if(Math.abs(c.vx)<20) c.vx=0;
+  if(Math.abs(c.vy)<20) c.vy=0;
+}
+function loop(now){ const dt=Math.min((now-state.last)/1000,.033); state.last=now; update(dt*state.gameSpeed); stepCameraMomentum(dt); render(); requestAnimationFrame(loop); }
+
+/* ═══════════════════════════════════════════════════════════
+   STATIC UI
+   ═══════════════════════════════════════════════════════════ */
+const statsTop=document.getElementById('statsTop');
+const statusGrid=document.getElementById('statusGrid');
+const messageBox=document.getElementById('messageBox');
+const mapList=document.getElementById('mapList');
+const towerList=document.getElementById('towerList');
+const baseInfo=document.getElementById('baseInfo');
+const modChips=document.getElementById('modChips');
+const overlay=document.getElementById('overlay');
+const overlayBody=document.getElementById('overlayBody');
+const overlayTitle=document.getElementById('overlayTitle');
+const overlaySub=document.getElementById('overlaySub');
+
+function codexKillTotal(){
+  const c=state.codex||{};
+  let n=0;
+  for(const v of Object.values(c.enemies||{})) n+=(+v||0);
+  for(const v of Object.values(c.bosses||{})) n+=(+v||0);
+  return n;
+}
+function codexSummaryText(){
+  const eCount=ENEMY_TYPES.filter(t=>!t.__modId||state.activeMods.has(t.__modId)).length;
+  const bCount=BOSS_TYPES.filter(b=>!b.__modId||state.activeMods.has(b.__modId)).length;
+  return `已收录 ${eCount} 种小怪 · ${bCount} 种 Boss · 累计击杀 ${codexKillTotal().toLocaleString()}。`;
+}
+
+function renderWavePreview(){
+  const el=document.getElementById('wavePreview'); if(!el)return;
+  const plan=state.waveState==='ready'?previewWave(state.wave):(state.wavePlan||previewWave(state.wave));
+  const parts=[];
+  for(const t of ENEMY_TYPES){
+    const n=plan.counts[t.id]||0;
+    if(n>0) parts.push(`<span class="waveChip${(t.armor||0)>=.2?' heavy':''}">${t.name} ×${n}</span>`);
+  }
+  if(plan.boss){
+    const bt=plan.boss;
+    parts.push(`<span class="waveChip boss">${bt.icon} ${bt.name} ×${plan.counts['boss:'+bt.id]||1}</span>`);
+  }
+  el.innerHTML=`<div class="muted" style="font-size:12px;margin-top:6px">第 <b style="color:var(--text)">${plan.wave}</b> 波 · 共 ${plan.total} 个敌人${plan.boss?' · <span style="color:var(--amber)">BOSS 波</span>':''}</div>
+    <div class="waveComp">${parts.join('')||'<span class="waveChip">—</span>'}</div>`;
+  const ab=document.getElementById('autoWaveBtn');
+  if(ab){
+    ab.textContent=`自动下一波：${state.autoWave?'开':'关'}`;
+    ab.classList.toggle('active',state.autoWave);
+  }
+}
+
+function renderStatic(){
+  statsTop.innerHTML=[
+    ['金币',state.gold,'var(--amber)','statGold'],
+    ['基地HP',`${Math.ceil(state.base.hp)}/${state.base.maxHp}`,'var(--rose)','statHp'],
+    ['技能点',state.skillPoints,'var(--cyan)','statSp'],
+    ['波次',state.wave,'var(--green)','statWave'],
+    ['剩余敌人',state.enemies.reduce((n,e)=>n+(e.alive?1:0),0),'var(--violet)','statRemain']
+  ].map(([k,v,c,id])=>`<div class="stat"><small>${k}</small><b id="${id}" style="color:${c}">${v}</b></div>`).join('');
+  state._uiCache={gold:state.gold,hp:Math.ceil(state.base.hp),hpMax:state.base.maxHp,
+    skillPoints:state.skillPoints,wave:state.wave,enemyCount:null,waveTag:null};
+
+  statusGrid.innerHTML=`
+    <div class="cardMini"><div class="k">选中塔</div><div class="v" style="font-size:15px">${state.selectedTowerId?'已选中':'未选择'}</div></div>
+    <div class="cardMini"><div class="k">地图</div><div class="v" style="font-size:15px">${currentMap().name}</div></div>
+    <div class="cardMini"><div class="k">场上敌人</div><div class="v" id="statEnemyCount">${state.enemies.reduce((n,e)=>n+(e.alive?1:0),0)}</div></div>
+    <div class="cardMini"><div class="k">难度</div><div class="v" style="font-size:15px">${mapEnemyHpMul().toFixed(2)}×</div></div>`;
+
+  if(messageBox.textContent!==state.message){
+    messageBox.textContent=state.message;
+    messageBox.classList.remove('msgFlash');
+    void messageBox.offsetWidth; // force reflow so a rapid second message still re-flashes
+    messageBox.classList.add('msgFlash');
+  }
+  document.getElementById('pauseBtn').textContent=state.paused?'继续':'暂停';
+  document.getElementById('speedBtn').textContent=`倍速 ×${state.gameSpeed}`;
+  document.getElementById('soundBtn').textContent=`音效：${state.soundOn?'开':'关'}`;
+  renderWavePreview();
+  updateWavePanel();
+  updateAutoSaveUI();
+  const codexSummary=document.getElementById('codexSummary');
+  if(codexSummary) codexSummary.textContent=codexSummaryText();
+  state._uiCache.codexKills=codexKillTotal();
+
+  // Base info panel
+  const b=state.base; const pct=b.hp/b.maxHp;
+  const bst=baseEffectiveStats();
+  const regen=baseRegenPerSec();
+  const nextCost=baseUpgradeCost();
+  const hpColor=pct>.6?'#4ade80':pct>.3?'#fbbf24':'#f87171';
+  baseInfo.innerHTML=`
+    <div class="grid2">
+      <div class="cardMini"><div class="k">等级</div><div class="v">Lv.${b.level}</div></div>
+      <div class="cardMini"><div class="k">血量</div><div class="v" id="baseHpText" style="color:${hpColor};font-size:16px">${Math.ceil(b.hp)}/${b.maxHp}</div></div>
+      <div class="cardMini"><div class="k">伤害</div><div class="v">${bst.damage}</div></div>
+      <div class="cardMini"><div class="k">射程</div><div class="v">${bst.range.toFixed(1)} 格</div></div>
+      <div class="cardMini" style="grid-column:1/-1"><div class="k">自动回血（科技「基地再生」）</div><div class="v" id="baseRegenText" style="font-size:16px;color:${regen>0?'var(--green)':'rgba(255,255,255,.35)'}">${regen>0?`+${regen.toFixed(1)} HP/秒`:'未解锁'}</div></div>
+    </div>
+    <div class="baseBar" style="margin-top:8px"><div class="baseBarFill" id="baseHpFill" style="width:${pct*100}%;background:linear-gradient(90deg,${hpColor},${pct>.6?'#7dffbb':'#ffd36b'})"></div></div>
+    <button class="btn primary" id="upgradeBaseBtn" style="width:100%;margin-top:9px">升级基地（${nextCost} 金币）</button>
+    <div class="footerTip">升级：+140 最大血量 +16 伤害，并回复部分血量。<br>基地射程短但伤害高，是最后一道防线。</div>`;
+  document.getElementById('upgradeBaseBtn').onclick=upgradeBase;
+
+  mapList.innerHTML=MAPS.filter(m=>!m.__modId||state.activeMods.has(m.__modId)).map(m=>`
+    <button class="mapBtn ${m.id===state.stageId?'active':''}" data-map="${m.id}">
+      <div class="row"><strong>${m.name}${m.__modId?' <span class="tag" style="background:rgba(125,255,187,.18);color:var(--green)">模组</span>':''}</strong><span class="tag">${m.bossName}</span></div>
+      <div class="muted" style="margin-top:5px">${m.desc}</div>
+    </button>`).join('');
+
+  // Tower list — pure reference cards now (building happens through the radial menu)
+  towerList.innerHTML=`<div style="display:flex;flex-direction:column;gap:8px">`+
+    Object.entries(TOWER_TYPES).filter(([,v])=>!v.__modId||state.activeMods.has(v.__modId)).map(([k,v])=>{
+    const isSL=k==='superLaser';
+    const dps=Math.round((v.baseDamage||0)/Math.max(.15,v.baseFireRate||1));
+    const col=v.color||[200,200,200];
+    const rgb=`rgb(${col[0]},${col[1]},${col[2]})`;
+    return `<div class="towerCard" style="${isSL?'border-color:rgba(0,240,255,.35);background:rgba(0,240,255,.06)':''}">
+      <div class="ti" style="color:${rgb};border-color:${rgb}66;box-shadow:0 0 12px ${rgb}33">${v.icon||'⬡'}</div>
+      <div class="tbody">
+        <div class="row">
+          <strong style="${isSL?'color:var(--cyan)':''}">${v.name}${v.__modId?' <span class="tag" style="background:rgba(125,255,187,.18);color:var(--green)">模组</span>':''}</strong>
+          <span class="tag" style="${isSL?'background:rgba(0,240,255,.2);color:var(--cyan)':''}">${v.cost} 金</span>
+        </div>
+        <div class="muted" style="margin-top:4px">${v.desc}</div>
+        <div class="foot">${isSL
+          ?`伤害 ${v.baseDamage} · 全图覆盖 · 占地2×2 · 不可升级`
+          :`伤害 ${v.baseDamage}｜射程 ${v.baseRange.toFixed(1)} 格｜秒伤≈${dps}${v.splash?'｜群伤':''}${v.pierce?'｜穿透'+(v.pierce+1):''}`}</div>
+      </div>
+    </div>`;
+  }).join('')+`</div>`;
+
+  // Mod chips in sidebar
+  const active=[...state.activeMods].map(id=>window.__mods.find(m=>m.id===id)).filter(Boolean);
+  modChips.innerHTML=active.length===0
+    ?`<span style="font-size:12px;color:rgba(255,255,255,.28)">无已启用模组</span>`
+    :active.map(m=>`<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;background:rgba(110,231,255,.14);border:1px solid rgba(110,231,255,.26);font-size:11px;color:var(--cyan)">🧩 ${m.name}</span>`).join('');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   OVERLAY
+   ═══════════════════════════════════════════════════════════ */
+function renderOverlay(payload=null){
+  const mode=state.overlayMode;
+  const titles={tech:'科技树',tower:'炮台升级',mods:'🧩 模组管理',base:'🏰 基地升级',codex:'📖 怪物图鉴',resume:'继续上次进度'};
+  overlayTitle.textContent=titles[mode]||'信息';
+  overlaySub.textContent=
+    mode==='tech'?`共${TECHS.filter(n=>!n.__modId||state.activeMods.has(n.__modId)).length}项科技 · 已解锁${Object.values(state.skills).filter(v=>v>0).length}项 · 可无限升级`:
+    mode==='tower'?'点击升级可连续加点':
+    mode==='mods'?`已加载 ${window.__mods.length} 个 · 已启用 ${state.activeMods.size} 个`:
+    mode==='base'?`基地 Lv.${state.base.level}`:
+    mode==='codex'?`当前第 ${state.wave} 波数值 · 击杀记录永久保存`:
+    mode==='resume'?'检测到本机自动存档':
+    '';
+
+  if(mode==='tower'){
+    const t=state.towers.find(x=>x.id===(payload||state.selectedTowerId));
+    if(!t){closeOverlay();return;}
+
+    // ── SuperLaser special overlay ──
+    if(t.type==='superLaser'){
+      const target=t.targetId?state.enemies.find(e=>e.id===t.targetId&&e.alive):null;
+      const isPriority=target&&state.priorityTargetId===target.id;
+      const charge=Math.max(0,1-t.cooldown/SUPERLASER_COOLDOWN);
+      const sellVal=towerSellValue(t);
+      const slDmg=superLaserStats().damage;
+      overlayBody.innerHTML=`
+        <div class="overlayGrid">
+          <div class="bigCard">
+            <h3 style="margin:0 0 8px;color:var(--cyan)">⚡ 激光炮 · 超级武器</h3>
+            <div class="notice" style="margin-bottom:10px;font-size:12px">占地2×2 · 全图覆盖 · 自动攻击 · <strong>不可升级</strong></div>
+            <div class="grid2">
+              <div class="cardMini"><div class="k">伤害</div><div class="v" style="color:var(--cyan)">${slDmg}${slDmg>500?` <span style="font-size:11px;color:var(--green)">(基础500)</span>`:''}</div></div>
+              <div class="cardMini"><div class="k">攻速</div><div class="v">0.5/s</div></div>
+              <div class="cardMini"><div class="k">射程</div><div class="v" style="color:var(--green)">全图</div></div>
+              <div class="cardMini"><div class="k">击杀</div><div class="v">${t.kills}</div></div>
+            </div>
+            <div style="margin-top:10px">
+              <div id="slChargeLabel" style="font-size:12px;color:var(--muted);margin-bottom:4px">充能进度 ${Math.round(charge*100)}%</div>
+              <div style="height:9px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden">
+                <div id="slChargeFill" style="height:100%;width:${charge*100}%;background:linear-gradient(90deg,#00c8ff,#7dffbb);border-radius:inherit"></div>
+              </div>
+            </div>
+            <div style="display:flex;gap:9px;margin-top:12px;flex-wrap:wrap">
+              <button class="btn danger" id="slSellBtn">出售（${sellVal}金）</button>
+            </div>
+            <div class="footerTip" style="margin-top:8px">激光炮全自动攻击，无需手动操作。直接点击地图上的敌人可将其标记为<strong>全局优先目标</strong>，所有炮台（含激光炮）会优先集火它。</div>
+          </div>
+          <div class="bigCard">
+            <h3 style="margin:0 0 9px">当前攻击目标</h3>
+            <div id="slTargetPane">${target?`
+              <div style="padding:12px;border-radius:16px;background:rgba(0,240,255,.08);border:1px solid rgba(0,240,255,.3)">
+                <div style="font-weight:700;font-size:15px;color:var(--cyan)">${target.boss?(target.icon+' '+target.bossTypeName):'普通敌人'} ${isPriority?'<span class="tag" style="background:rgba(255,140,0,.25);color:#ffb866;margin-left:6px">优先目标</span>':''}</div>
+                <div id="slTargetHpLabel" style="margin-top:7px;font-size:13px;color:var(--muted)">HP：${Math.ceil(target.hp)} / ${target.maxHp}</div>
+                <div style="height:7px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:7px">
+                  <div id="slTargetHpFill" style="height:100%;width:${(target.hp/target.maxHp)*100}%;background:${target.boss?'#ffd36b':'#fb7185'};border-radius:inherit"></div>
+                </div>
+                <div id="slTargetProgressLabel" style="font-size:11px;color:var(--muted);margin-top:5px">进度 ${Math.round(target.progress*100)}%</div>
+              </div>`
+            :`<div style="padding:20px;border-radius:16px;background:rgba(255,255,255,.04);border:1px dashed rgba(255,255,255,.12);text-align:center;color:var(--muted)">
+                <div style="font-size:24px;margin-bottom:8px">⏳</div>
+                场上暂无敌人，待机中
+              </div>`}</div>
+            ${state.priorityTargetId?`<button class="btn" id="slClearPriorityBtn" style="width:100%;margin-top:10px">清除全局优先目标</button>`:''}
+            <div class="footerTip" style="margin-top:10px">无优先目标时，激光炮自动攻击最接近基地的敌人。</div>
+          </div>
+        </div>`;
+      setTimeout(()=>{
+        const sb=document.getElementById('slSellBtn');
+        const cb=document.getElementById('slClearPriorityBtn');
+        if(sb)sb.onclick=()=>{
+          const idx=state.towers.findIndex(x=>x.id===t.id); if(idx<0)return;
+          const sv=towerSellValue(t);
+          state.gold+=sv; state.towers.splice(idx,1); state.selectedTowerId=null; state.towersRev++;
+          setMsg(`激光炮已出售，回收 ${sv} 金。`);
+          sfx('coin'); closeOverlay(); renderStatic(); scheduleAutoSave();
+        };
+        if(cb)cb.onclick=()=>{ state.priorityTargetId=null; setMsg('已清除全局优先目标。'); renderOverlay(t.id); renderStatic(); };
+      },0);
+      return;
+    }
+
+    // ── Normal tower overlay ──
+    const st=effectiveStats(t),up=towerUpgradeCost(t),sell=towerSellValue(t);
+    const ttype=TOWER_TYPES[t.type];
+    const nextSt=effectiveStats({...t,level:t.level+1});
+    const featureText=t.type==='cannon'?'范围爆炸（半径 '+(st.splashCells).toFixed(2)+' 格）':t.type==='frost'?'减速 '+(st.slow*100).toFixed(0)+'%（Boss 减半效果）':t.type==='laser'?'穿透 '+(1+st.pierce)+' 个目标 · 无视 '+(st.armorPen*100).toFixed(0)+'% 护甲':t.type==='mortar'?'超大范围爆炸（半径 '+(st.splashCells).toFixed(2)+' 格）':(ttype.__modId?'模组炮台':'标准弹道');
+    overlayBody.innerHTML=`
+      <div class="overlayGrid">
+        <div class="bigCard">
+          <h3 style="margin:0 0 9px">${ttype.name}${ttype.__modId?' <span class="tag" style="background:rgba(125,255,187,.18);color:var(--green)">模组</span>':''} · Lv.${t.level}</h3>
+          <div class="grid2">
+            <div class="cardMini"><div class="k">伤害</div><div class="v">${st.damage}<span style="font-size:12px;color:var(--green)"> → ${nextSt.damage}</span></div></div>
+            <div class="cardMini"><div class="k">秒伤（单体）</div><div class="v">${st.dps.toFixed(1)}<span style="font-size:12px;color:var(--green)"> → ${nextSt.dps.toFixed(1)}</span></div></div>
+            <div class="cardMini"><div class="k">射击间隔</div><div class="v">${st.cooldown.toFixed(2)}s</div></div>
+            <div class="cardMini"><div class="k">射程</div><div class="v">${st.range.toFixed(2)}</div></div>
+            <div class="cardMini"><div class="k">暴击率</div><div class="v">${(st.critChance*100).toFixed(0)}%</div></div>
+            <div class="cardMini"><div class="k">击杀</div><div class="v">${t.kills}</div></div>
+          </div>
+          <div style="display:flex;gap:9px;margin-top:11px;flex-wrap:wrap">
+            ${ttype.noUpgrade?`<button class="btn" disabled>该塔不可升级</button>`:`<button class="btn primary" id="upBtn">升级（${up} 金）</button>`}
+            <button class="btn" id="sellBtn">出售（${sell} 金）</button>
+          </div>
+          <div class="footerTip" style="margin-top:8px">${ttype.noUpgrade?'这是一座固定强度的特殊塔。':'升级无上限，费用随等级提高；每级约 +26% 基础伤害。'}</div>
+        </div>
+        <div class="bigCard">
+          <h3 style="margin:0 0 9px">当前特性</h3>
+          <div class="muted" style="line-height:1.8">${ttype.desc}<br>${featureText}<br>
+            已投入 ${t.invested||ttype.cost} 金 · 出售返还 60%</div>
+        </div>
+      </div>`;
+    setTimeout(()=>{
+      const b=document.getElementById('upBtn'); const s=document.getElementById('sellBtn');
+      if(b)b.onclick=()=>{
+        const t2=state.towers.find(x=>x.id===state.selectedTowerId); if(!t2)return;
+        const cost=towerUpgradeCost(t2);
+        if(state.gold<cost){setMsg(`升级需要 ${cost} 金，金币不足。`);return;}
+        state.gold-=cost; t2.level+=1; t2.invested=(t2.invested||0)+cost; t2.flash=.12;
+        state.shake=Math.max(state.shake,1.8);
+        setMsg(`${TOWER_TYPES[t2.type].name} 升级到 Lv.${t2.level}`); sfx('upgrade');
+        renderStatic(); renderOverlay(t2.id); callHook('onTowerUpgrade',t2); scheduleAutoSave();
+      };
+      if(s)s.onclick=()=>{
+        const idx=state.towers.findIndex(x=>x.id===state.selectedTowerId); if(idx<0)return;
+        const t2=state.towers[idx]; const sv=towerSellValue(t2);
+        state.gold+=sv; state.towers.splice(idx,1); state.selectedTowerId=null; state.towersRev++;
+        setMsg(`出售 +${sv} 金`); sfx('coin'); closeOverlay(); renderStatic(); scheduleAutoSave();
+      };
+    },0);
+    return;
+  }
+
+  if(mode==='codex'){
+    const wave=Math.max(1,state.wave);
+    const enemies=ENEMY_TYPES.filter(t=>!t.__modId||state.activeMods.has(t.__modId));
+    const bosses=BOSS_TYPES.filter(b=>!b.__modId||state.activeMods.has(b.__modId));
+    const card=(kind,ent)=>{
+      const boss=kind==='boss';
+      const s=boss?bossEnemyStats(ent,wave):normalEnemyStats(ent,wave);
+      const kills=boss?(state.codex.bosses[ent.id]||0):(state.codex.enemies[ent.id]||0);
+      const col=ent.color||[200,200,200];
+      const dot=`rgb(${col[0]},${col[1]},${col[2]})`;
+      const unlock=boss?'每 5 波轮换':`第 ${ent.unlock||1} 波起出现`;
+      const extra=[];
+      if(!boss&&(ent.slowResist||0)>0) extra.push(`减速抗性 <b>${Math.round(ent.slowResist*100)}%</b>`);
+      if(boss) extra.push(`召唤 <b>每 ${ent.summonRate}s ×${ent.minions}</b>`);
+      if(boss&&ent.doubleReward) extra.push('赏金 <b style="color:var(--amber)">双倍</b>');
+      return `<div class="codexCard${boss?' boss':''}">
+        <div class="codexHead">
+          <span class="codexDot" style="background:${dot};box-shadow:0 0 14px ${dot}"></span>
+          <strong>${ent.icon?ent.icon+' ':''}${ent.name}</strong>
+          ${ent.__modId?'<span class="tag">模组</span>':''}
+          <span class="tag" style="margin-left:auto">${unlock}</span>
+        </div>
+        <div class="codexStats">
+          <span>血量 <b>${s.hp.toLocaleString()}</b></span>
+          <span>速度 <b>${s.speed.toFixed(2)}</b> 格/秒</span>
+          <span>护甲 <b>${Math.round(s.armor*100)}%</b></span>
+          <span>基地伤害 <b>${s.baseDamage}</b></span>
+          <span>赏金 <b>${s.reward}</b></span>
+          ${extra.map(x=>`<span>${x}</span>`).join('')}
+        </div>
+        <div class="codexDesc">${ent.desc||'（模组敌人，暂无图鉴资料）'}</div>
+        <div class="codexCounter">${ent.counter||'暂未记录克制方法。'}</div>
+        <div class="codexKills">已击杀 ${kills.toLocaleString()}</div>
+      </div>`;
+    };
+    const totalKills=codexKillTotal();
+    overlayBody.innerHTML=`
+      <div class="notice">数值以<strong>第 ${wave} 波</strong>为基准展示（敌人属性随波次成长）。击杀记录会随自动存档永久保留。</div>
+      <h3 style="margin:16px 0 9px">小怪 · ${enemies.length} 种</h3>
+      <div class="overlayGrid">${enemies.map(e=>card('enemy',e)).join('')}</div>
+      <h3 style="margin:18px 0 9px">Boss · ${bosses.length} 种</h3>
+      <div class="overlayGrid">${bosses.map(b=>card('boss',b)).join('')}</div>
+      <div class="footerTip" style="margin-top:12px;text-align:center">累计击杀 ${totalKills.toLocaleString()} 个敌人 · 数据保存在本机自动存档中</div>`;
+    return;
+  }
+
+  if(mode==='resume'){
+    const d=(payload&&payload.data)||readAutoSave();
+    if(!d){ closeOverlay(); return; }
+    const when=(payload&&payload.when)||(d.savedAt?new Date(d.savedAt).toLocaleString('zh-CN',{hour12:false}):'未知时间');
+    const summary=autoSaveSummary(d);
+    const base=d.base||{};
+    overlayBody.innerHTML=`
+      <div class="resumeHero">
+        <div class="ic">💾</div>
+        <div>
+          <b>发现上次的自动存档</b>
+          <div class="muted" style="margin-top:2px">保存于 ${when}${d.playing?' · 当时正在交战':''}</div>
+        </div>
+      </div>
+      <div class="overlayGrid">
+        <div class="bigCard">
+          <h3 style="margin:0 0 9px">存档概览</h3>
+          <div class="grid2">
+            <div class="cardMini"><div class="k">地图</div><div class="v" style="font-size:15px">${summary.mapName}</div></div>
+            <div class="cardMini"><div class="k">波次</div><div class="v">${d.wave||1}</div></div>
+            <div class="cardMini"><div class="k">金币</div><div class="v">${Math.round(Number(d.gold)||0)}</div></div>
+            <div class="cardMini"><div class="k">基地</div><div class="v" style="font-size:15px">${Math.ceil(Number(base.hp)||0)}/${Number(base.maxHp)||0}</div></div>
+            <div class="cardMini"><div class="k">炮台</div><div class="v">${summary.towers}</div></div>
+            <div class="cardMini"><div class="k">技能点</div><div class="v">${d.skillPoints||0}</div></div>
+          </div>
+          <div class="footerTip" style="margin-top:9px">图鉴累计击杀：${summary.killTotal.toLocaleString()}</div>
+        </div>
+        <div class="bigCard">
+          <h3 style="margin:0 0 9px">继续还是重新开始？</h3>
+          <div class="muted" style="line-height:1.8">
+            继续：恢复地图、波次、金币、基地、炮台、科技与图鉴记录。<br>
+            重新开始：从第 1 波开局，图鉴击杀记录仍会保留。<br>
+            <span style="color:var(--amber)">提示：若上次退出时正在交战，该波会从头开始。</span>
+          </div>
+          <div style="display:flex;gap:9px;margin-top:14px;flex-wrap:wrap">
+            <button class="btn primary" id="resumeGameBtn">▶ 继续上次进度</button>
+            <button class="btn" id="newGameBtn">重新开始</button>
+          </div>
+          <div class="footerTip" style="margin-top:9px">自动存档只保存在本机浏览器，不会上传。</div>
+        </div>
+      </div>`;
+    setTimeout(()=>{
+      const rb=document.getElementById('resumeGameBtn');
+      const nb=document.getElementById('newGameBtn');
+      if(rb) rb.onclick=()=>{ closeOverlay(); applySave(d); setMsg('已恢复上次进度，继续守卫基地。'); };
+      if(nb) nb.onclick=()=>{
+        state.codex=normalizeCodex(d.codex);
+        clearAutoSave();
+        resetGame(state.stageId);
+        setMsg('已开始新的一局（图鉴击杀记录已保留）。');
+      };
+    },0);
+    return;
+  }
+
+  if(mode==='base'){
+    const b=state.base; const bst=baseEffectiveStats();
+    const nextCost=baseUpgradeCost();
+    const regen=baseRegenPerSec();
+    const pct=b.hp/b.maxHp; const hpColor=pct>.6?'#4ade80':pct>.3?'#fbbf24':'#f87171';
+    overlayBody.innerHTML=`
+      <div class="overlayGrid">
+        <div class="bigCard">
+          <h3 style="margin:0 0 9px">🏰 基地 · Lv.${b.level}</h3>
+          <div class="grid2">
+            <div class="cardMini"><div class="k">血量</div><div class="v" style="color:${hpColor}">${Math.ceil(b.hp)}/${b.maxHp}</div></div>
+            <div class="cardMini"><div class="k">伤害</div><div class="v">${bst.damage}</div></div>
+            <div class="cardMini"><div class="k">射程</div><div class="v">${bst.range.toFixed(1)} 格</div></div>
+            <div class="cardMini"><div class="k">射击间隔</div><div class="v">${bst.cooldown.toFixed(2)}s</div></div>
+            <div class="cardMini" style="grid-column:1/-1"><div class="k">自动回血</div><div class="v" style="font-size:16px;color:${regen>0?'var(--green)':'rgba(255,255,255,.35)'}">${regen>0?`+${regen.toFixed(1)} HP/秒`:'未解锁 · 科技树「基地再生」'}</div></div>
+          </div>
+          <div style="height:10px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:10px">
+            <div style="height:100%;width:${pct*100}%;background:linear-gradient(90deg,${hpColor},#7dffbb);border-radius:inherit;transition:width .4s"></div>
+          </div>
+          <button class="btn primary" id="upBaseBtn" style="width:100%;margin-top:11px">升级基地（${nextCost} 金币）</button>
+          <div class="footerTip" style="margin-top:8px">每次升级：+140 最大血量 · +16 伤害 · 回复部分血量。</div>
+        </div>
+        <div class="bigCard">
+          <h3 style="margin:0 0 9px">基地说明</h3>
+          <div class="muted" style="line-height:1.8">
+            基地是你的最后防线，位于路径终点🏰。<br>
+            范围小但攻击强，可自动攻击进入射程的敌人。<br>
+            敌人到达终点会直接扣除基地血量，Boss 的伤害高得多。<br>
+            基地血量归零则游戏结束。<br>
+            使用「基地强化」科技可提升基地战斗力，<br>
+            「基地再生」科技让基地每秒自动回复血量。
+          </div>
+        </div>
+      </div>`;
+    setTimeout(()=>{const b=document.getElementById('upBaseBtn');if(b)b.onclick=upgradeBase;},0);
+    return;
+  }
+
+  if(mode==='tech'){
+    // Preserve scroll position across re-renders (buyTech() calls renderOverlay()
+    // again, which used to reset the tree view back to the top-left / top).
+    const prevWrap=overlayBody.querySelector('.techWrap');
+    const prevScroll=prevWrap?{left:prevWrap.scrollLeft,top:prevWrap.scrollTop}:null;
+    const overlayCardEl=document.querySelector('.overlayCard');
+    const prevCardScroll=overlayCardEl?overlayCardEl.scrollTop:null;
+
+    const visibleTechs=TECHS.filter(n=>!n.__modId||state.activeMods.has(n.__modId));
+    const unlocked=id=>(state.skills[id]||0)>0;
+    const canBuy=node=>node.req.every(r=>unlocked(r));
+    const TREE_W=1040, TREE_H=1100;
+    const edges=visibleTechs.flatMap(n=>n.req.map(r=>{
+      const a=visibleTechs.find(x=>x.id===r); if(!a)return'';
+      const on=unlocked(n.id);
+      const midY=(a.y+n.y)/2;
+      return `<path d="M ${a.x} ${a.y} C ${a.x} ${midY}, ${n.x} ${midY}, ${n.x} ${n.y}"
+        stroke="${on?'rgba(125,255,187,.55)':'rgba(255,255,255,.14)'}" stroke-width="${on?3.2:2.2}" fill="none"/>`;
+    }).join('')).join('');
+    const nodes=visibleTechs.map(n=>{
+      const lv=state.skills[n.id]||0; const cost=skillCost(lv,n.base); const lock=!canBuy(n);
+      const rootCls=n.id==='core'?' root':'';
+      const boughtCls=n.id===state._justBoughtTechId?' techPulse':'';
+      return`<button class="techNode${lock?' locked':''}${rootCls}${boughtCls}" style="left:${n.x}px;top:${n.y}px" data-tech="${n.id}">
+        <div class="t"><span><span class="ic">${n.icon||'⬡'}</span>${n.name}${n.__modId?' 🧩':''}</span><span class="tag">Lv.${lv}</span></div>
+        <div class="d">${n.desc}</div>
+        <div class="c">消耗${cost}点 · 升级后：${n.eff(lv+1)}</div>
+      </button>`;
+    }).join('');
+    state._justBoughtTechId=null; // one-shot — consumed on this render
+    overlayBody.innerHTML=`
+      <div class="techWrap" style="height:min(640px,68vh)">
+        <div class="techSkillBadgeLayer">
+          <div class="techSkillBadge">🎯 当前技能点：<b>${state.skillPoints}</b></div>
+        </div>
+        <div class="techInner" style="width:${TREE_W}px;height:${TREE_H}px">
+          <svg class="techSvg" viewBox="0 0 ${TREE_W} ${TREE_H}">${edges}</svg>
+          ${nodes}
+        </div>
+      </div>
+      <div class="footerTip" style="margin-top:9px;text-align:center">科技树可左右/上下滚动查看完整分支 · 共 ${visibleTechs.length} 项科技</div>`;
+    overlayBody.querySelectorAll('[data-tech]').forEach(btn=>btn.onclick=()=>buyTech(btn.dataset.tech));
+    const newWrap=overlayBody.querySelector('.techWrap');
+    if(newWrap&&prevScroll){ newWrap.scrollLeft=prevScroll.left; newWrap.scrollTop=prevScroll.top; }
+    if(overlayCardEl&&prevCardScroll!=null) overlayCardEl.scrollTop=prevCardScroll;
+    return;
+  }
+
+  if(mode==='mods'){
+    renderModOverlay();
+    return;
+  }
+
+  // Default / help
+  overlayBody.innerHTML=`
+    <div class="overlayGrid">
+      <div class="bigCard"><h3 style="margin:0 0 9px">玩法说明</h3><div class="muted" style="line-height:1.9">
+        <b>点按地图任意空地</b>，格子旁会弹出<b>半圆建造盘</b>，在盘上选一种炮台即可建造；<br>
+        点按已经建好的炮台可以升级 / 出售，点按终点🏰可升级基地。<br>
+        每 5 波出现 Boss，Boss 会持续召唤小怪，半血后进入狂暴。<br>
+        敌人有不同种类：疾行者快、重装兽血厚、护盾机有护甲、虫群体型小。<br>
+        激光塔可穿透并无视部分护甲，迫击炮适合清理成群敌人。<br>
+        敌人到达终点会扣除基地血量，基地血量归零则游戏结束。<br>
+        科技树里的「基地再生」能让基地每秒自动回血。
+      </div></div>
+      <div class="bigCard"><h3 style="margin:0 0 9px">操作 · 快捷键</h3><div class="muted" style="line-height:1.9">
+        触屏：轻点 = 操作，按住拖动 = 平移地图（松手带惯性），可双指滑动侧栏/科技树。<br>
+        鼠标：左键 = 操作，左键拖动 = 平移地图，右键 = 取消选中 / 清除优先目标。<br>
+        点按敌人：设为全炮台优先目标<br>
+        空格：开始下一波 · P：暂停/继续 · A：开关自动开波 · C：怪物图鉴<br>
+        ESC：关闭界面 / 收起建造盘
+      </div></div>
+      <div class="footerTip" style="margin-top:9px;text-align:center">游戏会在过波、购买和关闭页面时自动保存到本机浏览器；下次打开会询问是否继续。</div>
+    </div>`;
+}
+
+/* ── Mod overlay ── */
+function renderModOverlay(){
+  overlayBody.innerHTML=`
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="notice">
+        将 <strong>.js 模组文件</strong>拖入下方区域，或点击选择文件，即可直接加载模组。<br>
+        <span style="font-size:12px;opacity:.75">模组可以新增炮台、地图、Boss、科技，也可以挂接游戏事件钩子。完整制作说明见随游戏附带的《模组制作说明书.txt》。</span>
+      </div>
+      <div class="modDropZone" id="modDropZone">
+        <input type="file" accept=".js" multiple id="modFileInput" />
+        <div style="font-size:28px;margin-bottom:10px">📦</div>
+        <div style="font-weight:700;margin-bottom:6px">拖入 .js 模组文件</div>
+        <div style="font-size:13px">或点击此处选择文件</div>
+      </div>
+      <div id="modErrorBox"></div>
+      <div id="modCardList"></div>
+    </div>`;
+
+  const dropZone=document.getElementById('modDropZone');
+  const fileInput=document.getElementById('modFileInput');
+  const errorBox=document.getElementById('modErrorBox');
+
+  function processFiles(files){
+    let hasError=false;
+    for(const file of files){
+      if(!file.name.endsWith('.js')){
+        errorBox.innerHTML+=`<div style="color:var(--rose);font-size:13px;padding:4px 0">⚠ ${file.name} 不是 .js 文件</div>`;
+        hasError=true; continue;
+      }
+      const reader=new FileReader();
+      reader.onload=e=>{
+        const r=loadModFromText(file.name,e.target.result);
+        if(r.ok){
+          const wasActive=state.activeMods.has(r.mod.id);
+          state.activeMods.add(r.mod.id);
+          if(!wasActive&&typeof r.mod.hooks?.onEnable==='function'){
+            try{ r.mod.hooks.onEnable(state); }catch(err){ console.warn(`[MOD:${r.mod.id}] onEnable:`,err); }
+          }
+          _previewCache.clear(); renderModCards(); renderStatic();
+        }
+        else { errorBox.innerHTML+=`<div style="color:var(--rose);font-size:13px;padding:4px 0">❌ ${file.name}：${r.err}</div>`; }
+      };
+      reader.readAsText(file);
+    }
+  }
+
+  dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('drag');});
+  dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('drag'));
+  dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.classList.remove('drag');processFiles(e.dataTransfer.files);});
+  fileInput.addEventListener('change',()=>{processFiles(fileInput.files);fileInput.value='';});
+
+  renderModCards();
+}
+
+function renderModCards(){
+  const list=document.getElementById('modCardList'); if(!list)return;
+  if(window.__mods.length===0){
+    list.innerHTML=`<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px">还没有加载任何模组，拖入 .js 文件开始。</div>`;
+    return;
+  }
+  list.innerHTML=window.__mods.map(mod=>{
+    const on=state.activeMods.has(mod.id);
+    return`<div class="modCard${on?' modOn':''}" data-modcard="${mod.id}">
+      <div class="modInfo">
+        <div class="modName">${mod.name}<span class="modBadge${on?' on':''}">${on?'已启用':'未启用'}</span></div>
+        <div class="modDesc">${mod.desc||'（无描述）'}</div>
+        <div class="modMeta">v${mod.version||'?'} ${mod.author?`· ${mod.author}`:''} ${mod._filename?`· ${mod._filename}`:''}</div>
+        <button class="modRemove" data-modremove="${mod.id}">移除</button>
+      </div>
+      <button class="modToggle${on?' on':''}" data-modtoggle="${mod.id}">${on?'停用':'启用'}</button>
+    </div>`;
+  }).join('');
+  list.querySelectorAll('[data-modtoggle]').forEach(btn=>{
+    btn.onclick=()=>{
+      const id=btn.dataset.modtoggle; const mod=window.__mods.find(m=>m.id===id);
+      if(state.activeMods.has(id)){
+        state.activeMods.delete(id);
+        if(typeof mod?.hooks?.onDisable==='function') mod.hooks.onDisable(state);
+        // If the currently selected tower type belongs to the disabled mod, fall back to cannon
+        const selType=TOWER_TYPES[state.selectedTowerType];
+        if(selType?.__modId===id) state.selectedTowerType='cannon';
+      } else {
+        state.activeMods.add(id);
+        if(typeof mod?.hooks?.onEnable==='function') mod.hooks.onEnable(state);
+      }
+      _previewCache.clear(); renderModCards(); renderStatic();
+    };
+  });
+  list.querySelectorAll('[data-modremove]').forEach(btn=>{
+    btn.onclick=()=>{
+      const id=btn.dataset.modremove; const mod=window.__mods.find(m=>m.id===id);
+      if(state.activeMods.has(id)){
+        state.activeMods.delete(id);
+        if(typeof mod?.hooks?.onDisable==='function') mod.hooks.onDisable(state);
+      }
+      window.__mods=window.__mods.filter(m=>m.id!==id);
+      _previewCache.clear(); renderModCards(); renderStatic();
+    };
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TOWER / MAP CLICK HANDLERS
+   ═══════════════════════════════════════════════════════════ */
+function selectTowerAtCell(gx,gy){
+  // Check multi-cell (size:2) towers first
+  const big=state.towers.find(t=>(TOWER_TYPES[t.type]?.size===2)&&towerOccupiesCell(t,gx,gy));
+  if(big){state.selectedTowerId=big.id;openOverlay('tower',big.id);renderStatic();return true;}
+  const t=state.towers.find(x=>x.x===gx&&x.y===gy);
+  if(t){state.selectedTowerId=t.id;openOverlay('tower',t.id);renderStatic();return true;}
+  const mp=currentMap(); const lc=mp.path[mp.path.length-1];
+  if(gx===lc[0]&&gy===lc[1]){ state.selectedTowerId=null; openOverlay('base'); renderStatic(); return true; }
+  return false;
+}
+/* 建造炮台：typeKey 由半圆建造盘传入（不再依赖右侧预选塔种）。
+   返回 true 表示建造成功，轮盘据此决定是否收起。 */
+function placeTower(gx,gy,typeKey=state.selectedTowerType){
+  state.resumePending=false;             // building implies "start from here"
+  if(!TOWER_TYPES[typeKey]) typeKey='cannon';
+  const ttype=TOWER_TYPES[typeKey];
+  const ps=pathSet();
+  const foot=ttype.size===2?[[gx,gy],[gx+1,gy],[gx,gy+1],[gx+1,gy+1]]:[[gx,gy]];
+  let problem='';
+  for(const [cx,cy] of foot){
+    if(cx<0||cy<0||cx>=GRID_W||cy>=GRID_H){ problem='超出地图边界'; break; }
+    if(ps.has(`${cx},${cy}`)){ problem='这里是敌人路线'; break; }
+    if(state.towers.some(t=>towerOccupiesCell(t,cx,cy))){ problem='该位置已有建筑'; break; }
+  }
+  if(problem){ setMsg(`${ttype.name}无法建造：${problem}。`); return false; }
+  if(state.gold<ttype.cost){ setMsg(`${ttype.name}需要 ${ttype.cost} 金，当前只有 ${Math.floor(state.gold)} 金。`); sfx('click'); return false; }
+  const t=makeTower(typeKey,gx,gy);
+  state.towers.push(t); state.gold-=ttype.cost; t.invested=ttype.cost;
+  // 建造完成后不保留“选中”状态：建造盘收起，射程圈也不会一直挂在地图上
+  state.selectedTowerId=null; state.towersRev++;
+  const c=towerCenterPx(t);
+  createParticles(c.x,c.y,18,`rgb(${(ttype.color||[0,240,255]).join(',')})`,1.1);
+  state.shake=Math.max(state.shake,2.5); sfx('coin');
+  setMsg(`建造了 ${ttype.name}（${ttype.cost} 金）。点按已建炮台可升级/出售。`);
+  callHook('onTowerPlace',t);
+  invalidateBackground();
+  renderStatic();
+  scheduleAutoSave();
+  return true;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   EVENTS
+   ═══════════════════════════════════════════════════════════ */
+document.getElementById('pauseBtn').onclick=()=>{
+  if(state.gameOver)return;
+  state.paused=!state.paused; sfx('click'); renderStatic();
+};
+const SPEED_CYCLE=[1,1.5,2,3];
+document.getElementById('speedBtn').onclick=()=>{
+  const idx=SPEED_CYCLE.indexOf(state.gameSpeed);
+  state.gameSpeed=SPEED_CYCLE[(idx+1)%SPEED_CYCLE.length];
+  sfx('click'); renderStatic();
+};
+document.getElementById('soundBtn').onclick=()=>{state.soundOn=!state.soundOn;if(state.soundOn)ensureAudio();sfx('click');renderStatic();};
+document.getElementById('startBtn').onclick=()=>startWave();
+document.getElementById('resetBtn').onclick=()=>resetGame(state.stageId);
+document.getElementById('autoWaveBtn').onclick=()=>{
+  state.autoWave=!state.autoWave;
+  state.autoTimer=state.autoWave?GAME_BALANCE.autoWaveDelay:0;
+  setMsg(state.autoWave?`已开启自动开波：每波清空后 ${GAME_BALANCE.autoWaveDelay} 秒自动开始下一波。`:'已关闭自动开波。');
+};
+document.getElementById('openCodexBtn').onclick=()=>openOverlay('codex');
+document.getElementById('openCodexBtnSide').onclick=()=>openOverlay('codex');
+document.getElementById('openTechBtn').onclick=()=>openOverlay('tech');
+document.getElementById('openTechBtnSide').onclick=()=>openOverlay('tech');
+document.getElementById('openModBtn').onclick=()=>openOverlay('mods');
+document.getElementById('openModBtnSide').onclick=()=>openOverlay('mods');
+document.getElementById('overlayCloseBtn').onclick=closeOverlay;
+/* 窄屏 / 平板：侧边栏改为抽屉，按钮随时打开 */
+const appEl=document.getElementById('app');
+const sideToggleBtn=document.getElementById('sideToggleBtn');
+function setSideOpen(open){
+  appEl.classList.toggle('sideOpen',open);
+  if(sideToggleBtn) sideToggleBtn.textContent=open?'✕ 收起':'☰ 面板';
+}
+if(sideToggleBtn) sideToggleBtn.onclick=()=>setSideOpen(!appEl.classList.contains('sideOpen'));
+document.getElementById('sideScrim').onclick=()=>setSideOpen(false);
+overlay.addEventListener('click',e=>{if(e.target===overlay)closeOverlay();});
+/* The stage can change size after the initial measurement (fonts, the sidebar
+   growing, a window resize) — resize the canvas backing store to match so the
+   board is never stretched or clipped. */
+let _fitQueued=false;
+function scheduleFit(){
+  if(_fitQueued)return;
+  _fitQueued=true;
+  requestAnimationFrame(()=>{ _fitQueued=false; fitBoard(); });
+}
+window.addEventListener('resize',scheduleFit);
+window.addEventListener('load',()=>fitBoard());
+if(typeof ResizeObserver!=='undefined'){
+  try{ new ResizeObserver(()=>scheduleFit()).observe(document.getElementById('canvasBox')); }catch(_){}
+}
+window.addEventListener('keydown',e=>{
+  const overlayOpen=state.overlayMode!=='none';
+  if(e.code==='Escape'){
+    if(state.buildCell){ closeBuildWheel(); return; }
+    if(overlayOpen) closeOverlay();
+    else if(state.priorityTargetId){ state.priorityTargetId=null; setMsg('已清除优先目标。'); }
+    return;
+  }
+  if(overlayOpen)return;                       // game hotkeys must not fire behind a dialog
+  if(e.code==='Space'){ e.preventDefault(); startWave(); }
+  else if(e.code==='KeyP'){ if(!state.gameOver){ state.paused=!state.paused; renderStatic(); } }
+  else if(e.code==='KeyA'){ document.getElementById('autoWaveBtn')?.click(); }
+  else if(e.code==='KeyC'){ openOverlay('codex'); }
+  if(state.camera.needsCam&&['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)){
+    e.preventDefault();
+    const step=52;
+    if(e.code==='ArrowUp')state.camera.y-=step;
+    if(e.code==='ArrowDown')state.camera.y+=step;
+    if(e.code==='ArrowLeft')state.camera.x-=step;
+    if(e.code==='ArrowRight')state.camera.x+=step;
+    updateCameraOffset();
+  }
+});
+
+/* ═══════════════════════════════════════════════════════════
+   INPUT — 统一的指针输入，鼠标与触屏通用：
+   · 短按 / 点击 = 执行操作（选炮台、集火、弹出建造盘）
+   · 拖动 = 平移地图（地图超出屏幕时），松手带一点惯性
+   ═══════════════════════════════════════════════════════════ */
+let boardDragging=false, boardDragMoved=false, boardDragStart={x:0,y:0,camX:0,camY:0};
+let pointerStart=null, lastPan={x:0,y:0,t:0}, dragVel={x:0,y:0};
+const TAP_MOVE_PX=12, TAP_MAX_MS=650;
+
+function handleTap(clientX,clientY,touch){
+  if(state.gameOver){ resetGame(state.stageId); return; }
+  if(state.overlayMode!=='none')return;
+  const rect=canvas.getBoundingClientRect();
+  const x=clientX-rect.left,y=clientY-rect.top;
+  const bx=x-state.board.x,by=y-state.board.y;
+  if(bx<0||by<0||bx>=state.board.w||by>=state.board.h){ closeBuildWheel(); return; }
+
+  // 建造盘打开时，点其它位置只收起轮盘
+  if(state.buildCell){ closeBuildWheel(); return; }
+
+  // 点敌方单位 → 设为全炮台优先目标（触屏给更大的判定半径）
+  const pad=touch?1.9:1;
+  let clickedEnemy=null,bestD=Infinity;
+  for(const en of state.enemies){
+    if(!en.alive)continue;
+    const r=((en.radius||(en.boss?26:14))+8)*pad;
+    const d=Math.hypot(en.x-x,en.y-y);
+    if(d<=r&&d<bestD){clickedEnemy=en;bestD=d;}
+  }
+  if(clickedEnemy){
+    state.priorityTargetId=clickedEnemy.id;
+    setMsg(`🎯 已标记优先目标：${clickedEnemy.boss?(clickedEnemy.icon+' '+clickedEnemy.bossTypeName):(clickedEnemy.name||'敌人')}，所有炮台集火攻击。`);
+    createParticles(clickedEnemy.x,clickedEnemy.y,18,'#00f0ff',1.1);
+    state.shake=Math.max(state.shake,1.5);
+    return;
+  }
+
+  const gx=Math.floor(bx/state.board.cell),gy=Math.floor(by/state.board.cell);
+  if(gx<0||gy<0||gx>=GRID_W||gy>=GRID_H)return;
+  if(selectTowerAtCell(gx,gy)) return;          // 已有炮台 / 基地终点
+  if(pathSet().has(`${gx},${gy}`)){ setMsg('这里是敌人路线，无法建造。'); return; }
+  openBuildWheel(gx,gy);                        // 空地 → 半圆建造盘
+}
+
+canvas.addEventListener('pointerdown',e=>{
+  if(e.pointerType==='mouse'&&e.button!==0)return;
+  if(state.overlayMode!=='none')return;
+  pointerStart={x:e.clientX,y:e.clientY,t:performance.now(),type:e.pointerType};
+  boardDragging=true; boardDragMoved=false;
+  boardDragStart={x:e.clientX,y:e.clientY,camX:state.camera.x,camY:state.camera.y};
+  state.camera.vx=0; state.camera.vy=0;
+  lastPan={x:e.clientX,y:e.clientY,t:performance.now()};
+  dragVel={x:0,y:0};
+  try{ canvas.setPointerCapture(e.pointerId); }catch(_){}
+});
+
+canvas.addEventListener('pointermove',e=>{
+  const rect=canvas.getBoundingClientRect();
+  state.mouse.x=e.clientX-rect.left; state.mouse.y=e.clientY-rect.top; state.mouse.inside=true;
+  if(!boardDragging)return;
+  const dx=e.clientX-boardDragStart.x, dy=e.clientY-boardDragStart.y;
+  if(!boardDragMoved&&Math.hypot(dx,dy)>TAP_MOVE_PX) boardDragMoved=true;
+  if(boardDragMoved&&state.camera.needsCam){
+    const now=performance.now();
+    const dt=Math.max(.008,(now-lastPan.t)/1000);
+    dragVel={x:-(e.clientX-lastPan.x)/dt,y:-(e.clientY-lastPan.y)/dt};
+    lastPan={x:e.clientX,y:e.clientY,t:now};
+    state.camera.x=boardDragStart.camX-dx;
+    state.camera.y=boardDragStart.camY-dy;
+    closeBuildWheel();
+    updateCameraOffset();
+  }
+});
+
+canvas.addEventListener('pointerup',e=>{
+  if(!boardDragging)return;
+  boardDragging=false;
+  const moved=boardDragMoved;
+  const elapsed=performance.now()-(pointerStart?pointerStart.t:0);
+  if(moved&&state.camera.needsCam){
+    const sp=Math.hypot(dragVel.x,dragVel.y);
+    if(sp>240){ state.camera.vx=clamp(dragVel.x,-1500,1500); state.camera.vy=clamp(dragVel.y,-1500,1500); }
+  }
+  boardDragMoved=false; pointerStart=null; dragVel={x:0,y:0};
+  if(!moved&&elapsed<TAP_MAX_MS) handleTap(e.clientX,e.clientY,e.pointerType==='touch');
+});
+
+canvas.addEventListener('pointercancel',()=>{ boardDragging=false; boardDragMoved=false; pointerStart=null; });
+canvas.addEventListener('pointerleave',()=>{ if(!boardDragging){ state.mouse.inside=false; } });
+canvas.addEventListener('contextmenu',e=>{
+  e.preventDefault();
+  if(state.buildCell){ closeBuildWheel(); return; }
+  if(state.priorityTargetId){ state.priorityTargetId=null; setMsg('已清除优先目标。'); return; }
+  if(state.selectedTowerId){ state.selectedTowerId=null; setMsg('已取消选中炮台。'); return; }
+  closeOverlay();
+});
+mapList.addEventListener('click',e=>{const b=e.target.closest('[data-map]');if(!b)return;resetGame(b.dataset.map);});
+
+
+/* ═══════════════════════════════════════════════════════════
+   MOD API — built last, once every piece it references exists.
+   Exposed as both the local MOD_API used by loadModFromText(),
+   and window.TD for convenience access from inside mod hooks.
+   ═══════════════════════════════════════════════════════════ */
+MOD_API = {
+  version: '2.0',
+  TOWER_TYPES, MAPS, BOSS_TYPES, TECHS, ENEMY_TYPES,
+  registerTower(modId, id, def){
+    if(!id) throw new Error('registerTower: 缺少塔的 id');
+    const merged={ name:'未命名塔', cost:100, baseRange:2.5, baseDamage:20, baseFireRate:1,
+      projectileSpeed:8, splash:0, slow:0, pierce:0, armorPen:0, color:[255,255,255], desc:'',
+      size:1, noUpgrade:false, ...def, __modId:modId };
+    TOWER_TYPES[id]=merged;
+    return merged;
+  },
+  registerMap(modId, def){
+    if(!def||!def.id) throw new Error('registerMap: 缺少地图 id');
+    const exist=MAPS.find(m=>m.id===def.id);
+    if(exist){ console.warn(`[MOD] 地图 "${def.id}" 已存在，已跳过注册。`); return exist; }
+    const merged={ name:'未命名地图', bossName:'未知Boss', desc:'',
+      theme:['#0a0a14','#14182a','#202840'], roadFill:'rgba(120,120,120,.85)', roadEdge:'rgba(170,170,170,.4)',
+      grassA:'rgba(14,14,22,.92)', grassB:'rgba(11,11,18,.92)', glow:'rgba(150,150,255,.2)',
+      accentColor:'#aaaaaa', deco:'forest', path:[[0,4],[11,4]],
+      gridW:12, gridH:9, bossPool:[], hpMul:1,
+      waveEnemyCountBase:GAME_BALANCE.wave.countBase, waveEnemyCountGrowth:GAME_BALANCE.wave.countGrowth,
+      waveEnemySpeedBase:GAME_BALANCE.wave.speedBase, waveEnemySpeedGrowth:GAME_BALANCE.wave.speedGrowth, waveOverrides:{},
+      ...def, __modId:modId };
+    MAPS.push(merged);
+    _previewCache.clear();
+    return merged;
+  },
+  registerBoss(modId, def){
+    if(!def||!def.id) throw new Error('registerBoss: 缺少 Boss id');
+    const exist=BOSS_TYPES.find(b=>b.id===def.id);
+    if(exist){ console.warn(`[MOD] Boss "${def.id}" 已存在，已跳过注册。`); return exist; }
+    const merged={ name:'神秘敌人', color:[255,255,255], hpMul:1, speedMul:1, armor:0,
+      summonRate:4, minions:3, rageMinions:5, icon:'👾', doubleReward:false, ...def, __modId:modId };
+    BOSS_TYPES.push(merged);
+    _previewCache.clear();
+    return merged;
+  },
+  registerEnemyType(modId, def){
+    if(!def||!def.id) throw new Error('registerEnemyType: 缺少敌人 id');
+    const exist=ENEMY_TYPES.find(e=>e.id===def.id);
+    if(exist){ console.warn(`[MOD] 敌人 "${def.id}" 已存在，已跳过注册。`); return exist; }
+    const merged={ name:'未知敌人', hpMul:1, speedMul:1, radius:14, color:[255,140,120],
+      armor:0, rewardMul:1, dmgMul:1, unlock:1, weight:5, slowResist:0, icon:'', ...def, __modId:modId };
+    ENEMY_TYPES.push(merged);
+    _previewCache.clear();
+    return merged;
+  },
+  registerTech(modId, def){
+    if(!def||!def.id) throw new Error('registerTech: 缺少科技 id');
+    const exist=TECHS.find(t=>t.id===def.id);
+    if(exist){ console.warn(`[MOD] 科技 "${def.id}" 已存在，已跳过注册。`); return exist; }
+    const merged={ name:'未命名科技', icon:'⬡', x:500, y:1100, req:[], max:999, base:2,
+      desc:'', eff:lv=>`Lv.${lv}`, ...def, __modId:modId };
+    TECHS.push(merged);
+    return merged;
+  },
+  get state(){ return state; },
+  writeAutoSave, readAutoSave, applySave, normalizeCodex, scheduleAutoSave,
+  utils:{ uid, clamp, dist, cellCenter, towerCenterPx, towerFootprint, createParticles,
+    floatingText, sfx, makeTower, makeEnemy, currentMap, pathPoints, basePosition, rotateTowards,
+    getPathData, pointAtDistance, syncEnemyPosition, aliveEnemies, damageEnemy, applySlow,
+    effectiveStats, baseEffectiveStats, towerUpgradeCost, towerSellValue, buildWave, previewWave },
+  refreshUI(){ invalidateBackground(); renderStatic(); },
+};
+window.TD = MOD_API;
+
+/* ═══════════════════════════════════════════════════════════
+   EDITOR PREVIEW — 地图编辑器点「在游戏中试玩」会通过
+   localStorage 传一张地图 + 打开 index.html?fromeditor=1
+   这里把它注册成临时模组并直接开局，不会写入自动存档。
+   ═══════════════════════════════════════════════════════════ */
+function loadEditorPreview(){
+  try{
+    const params=new URLSearchParams(location.search||'');
+    if(!params.has('fromeditor')) return null;
+    const raw=localStorage.getItem('starocean_editor_pending_map');
+    if(!raw) return null;
+    const data=JSON.parse(raw);
+    const mapDef=data&&data.mapDef;
+    if(!mapDef||!mapDef.id||!Array.isArray(mapDef.path)||mapDef.path.length<2) return null;
+    let mapId=String(mapDef.id);
+    if(MAPS.some(m=>m.id===mapId)) mapId=mapId+'_preview';
+    mapDef.id=mapId;
+    const bossDef=data.bossDef||null;
+    const mod={
+      id:'editor_preview', name:'编辑器预览地图（临时）',
+      register(api,modId){
+        if(bossDef){ bossDef.id=mapId+'_boss'; api.registerBoss(modId,bossDef); mapDef.bossPool=[bossDef.id]; }
+        api.registerMap(modId,mapDef);
+      }
+    };
+    window.__mods=window.__mods.filter(m=>m.id!=='editor_preview');
+    window.__mods.push(mod);
+    state.activeMods.add('editor_preview');
+    state.previewMode=true;
+    mod.register(MOD_API,'editor_preview');
+    return mapId;
+  }catch(e){ console.warn('[EDITOR PREVIEW]',e); return null; }
+}
+const __editorMapId=loadEditorPreview();
+
+/* ── INIT ── */
+applyMapGrid();
+fitBoard();
+renderStatic();
+if(__editorMapId){
+  const prevAuto=state.autoSave;
+  state.autoSave=false;              // 试玩不覆盖玩家自己的自动存档
+  resetGame(__editorMapId);
+  state.autoSave=prevAuto;
+  setMsg(`已从编辑器载入《${currentMap().name}》${GRID_W}×${GRID_H}，直接点「开始下一波」试玩（试玩不覆盖自动存档）。`);
+} else {
+  maybeOfferAutoSave();              // offer the rolling localStorage snapshot, if any
+}
+requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
