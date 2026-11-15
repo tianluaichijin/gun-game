@@ -1,0 +1,1253 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>星海防线 · 地图编辑器</title>
+<style>
+:root{
+  --bg1:#07111d;--bg2:#0b1730;--bg3:#132442;
+  --panel:rgba(10,18,32,.58);--line:rgba(255,255,255,.10);
+  --text:#eef6ff;--muted:#9cb0c9;
+  --cyan:#6ee7ff;--violet:#b38cff;--amber:#ffd07a;--rose:#ff889f;--green:#7dffbb;--orange:#ffb366;
+  --shadow:0 18px 55px rgba(0,0,0,.38);--radius:20px;--sideW:380px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#040814;color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+body{background:radial-gradient(1200px 900px at 20% 15%,rgba(98,197,255,.12),transparent 55%),
+     radial-gradient(900px 700px at 85% 12%,rgba(193,112,255,.10),transparent 52%),
+     linear-gradient(135deg,var(--bg1),var(--bg2) 48%,var(--bg3))}
+#app{width:100vw;height:100vh;display:grid;grid-template-columns:minmax(0,1fr) var(--sideW);gap:14px;padding:14px}
+#mainWrap{display:flex;flex-direction:column;gap:12px;min-width:0;min-height:0}
+.panel,.topbar{backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);background:var(--panel);border:1px solid var(--line);box-shadow:var(--shadow);border-radius:var(--radius)}
+.topbar{padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.title{font-size:clamp(15px,1.5vw,20px);font-weight:800;letter-spacing:.2px}
+.sub{color:var(--muted);font-size:11.5px;margin-top:2px}
+button,input,select,textarea{font:inherit;cursor:pointer;border:0;outline:none;color:var(--text)}
+input,select,textarea{cursor:text}
+a{color:inherit}
+.btn{padding:9px 13px;border-radius:13px;background:rgba(255,255,255,.08);color:var(--text);border:1px solid rgba(255,255,255,.10);transition:.16s;display:inline-flex;align-items:center;gap:7px;font-size:13px;white-space:nowrap;text-decoration:none}
+.btn:hover{transform:translateY(-1px);background:rgba(255,255,255,.13)}
+.btn.primary{background:linear-gradient(135deg,#6ee7ff,#7dffbb);color:#02131d;font-weight:800}
+.btn.danger{background:linear-gradient(135deg,#ff7f9c,#ffad76);color:#22070f;font-weight:800}
+.btn.small{padding:6px 10px;border-radius:10px;font-size:12px}
+.btn[disabled]{opacity:.35;cursor:not-allowed;transform:none}
+.btnRow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tool{padding:8px 12px;border-radius:11px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);font-size:12.5px;display:inline-flex;gap:6px;align-items:center}
+.tool.active{background:linear-gradient(135deg,#6ee7ff,#7dffbb);color:#02131d;font-weight:800;border-color:transparent}
+#stageCard{position:relative;flex:1;min-height:0;padding:12px;display:flex;flex-direction:column;gap:8px}
+#canvasBox{position:relative;width:100%;flex:1;min-height:0;border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,.10);cursor:crosshair;touch-action:none}
+canvas{display:block}
+#editCanvas{width:100%;height:100%}
+.chips{position:absolute;left:14px;top:14px;z-index:5;display:flex;gap:8px;flex-wrap:wrap;pointer-events:none;max-width:74%}
+.chip{padding:6px 10px;border-radius:999px;background:rgba(0,0,0,.42);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(12px);font-size:11.5px;color:#edf5ff}
+#miniWrap{position:absolute;right:14px;bottom:14px;z-index:6;display:none}
+#miniCanvas{border-radius:10px;border:1px solid rgba(255,255,255,.18);box-shadow:0 8px 24px rgba(0,0,0,.4);cursor:pointer;touch-action:none}
+.statusLine{display:flex;gap:8px;flex-wrap:wrap;font-size:11.5px;color:var(--muted)}
+.statusLine b{color:var(--cyan);font-weight:700}
+
+#side{display:flex;flex-direction:column;gap:12px;min-height:0;min-width:0;overflow-y:auto;overflow-x:hidden;padding-right:1px;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+#side::-webkit-scrollbar{width:4px}
+#side::-webkit-scrollbar-track{background:transparent}
+#side::-webkit-scrollbar-thumb{background:rgba(110,231,255,.22);border-radius:999px}
+.panel{padding:13px}
+.panel h3{font-size:14.5px;font-weight:700;margin-bottom:9px;display:flex;align-items:center;gap:6px}
+.muted{color:var(--muted);font-size:12.5px;line-height:1.55}
+.field{display:flex;flex-direction:column;gap:4px;margin-bottom:9px}
+.field label{font-size:11.5px;color:var(--muted)}
+.field input[type="text"],.field input[type="number"],.field textarea{
+  padding:8px 10px;border-radius:11px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);font-size:13px;width:100%}
+.field textarea{resize:vertical;min-height:52px;line-height:1.5}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.colorField{display:flex;align-items:center;gap:8px;justify-content:space-between;padding:6px 8px;border-radius:11px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);margin-bottom:6px}
+.colorField span{font-size:12px;color:var(--muted)}
+.colorField input[type="color"]{width:36px;height:26px;border-radius:7px;border:1px solid rgba(255,255,255,.2);background:none;padding:0}
+.presetRow{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.presetBtn{padding:6px 10px;border-radius:10px;font-size:11.5px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05)}
+.presetBtn:hover{background:rgba(255,255,255,.12)}
+.tplRow{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.tplBtn{padding:8px 9px;border-radius:11px;font-size:12px;text-align:left;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);line-height:1.4}
+.tplBtn:hover{background:rgba(255,255,255,.12)}
+.tplBtn b{display:block;font-size:12.5px;margin-bottom:1px}
+.tplBtn span{color:var(--muted);font-size:10.5px}
+.pointList{max-height:120px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.pointList::-webkit-scrollbar{width:3px}
+.pointTag{font-size:11px;padding:3px 7px;border-radius:8px;background:rgba(110,231,255,.10);border:1px solid rgba(110,231,255,.2);color:#d8f8ff}
+.bossItem{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:11px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);margin-bottom:6px;font-size:12.5px}
+.bossItem input{width:15px;height:15px}
+.overrideRow{display:flex;align-items:center;gap:8px;padding:6px 9px;border-radius:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);margin-bottom:5px;font-size:12px}
+.overrideRow b{color:var(--cyan);min-width:44px}
+.overrideRow span{flex:1;color:var(--muted)}
+.overrideRow button{background:rgba(255,110,130,.16);border:1px solid rgba(255,110,130,.3);border-radius:8px;padding:3px 8px;font-size:11px;color:#ffc7d1}
+.toggleRow{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:11px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);margin-bottom:8px}
+.switch{position:relative;width:38px;height:21px;border-radius:999px;background:rgba(255,255,255,.14);transition:.15s;flex-shrink:0}
+.switch.on{background:linear-gradient(135deg,#6ee7ff,#7dffbb)}
+.switch i{position:absolute;top:2px;left:2px;width:17px;height:17px;border-radius:50%;background:#fff;transition:.15s;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+.switch.on i{left:19px}
+.msgBox{padding:9px 11px;border-radius:12px;font-size:12px;line-height:1.6;margin-top:4px}
+.msgBox.err{background:rgba(255,110,130,.14);border:1px solid rgba(255,110,130,.3);color:#ffc7d1}
+.msgBox.ok{background:rgba(125,255,187,.12);border:1px solid rgba(125,255,187,.28);color:#c8ffe1}
+.customBossFields{margin-top:8px;padding-top:8px;border-top:1px dashed rgba(255,255,255,.12)}
+.footerTip{color:var(--muted);font-size:11.5px;line-height:1.65;margin-top:4px}
+.footerTip code{background:rgba(255,255,255,.08);padding:1px 5px;border-radius:5px;color:#cfe9ff}
+#toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,18px);z-index:40;padding:10px 16px;border-radius:999px;font-size:13px;opacity:0;pointer-events:none;transition:.22s;background:rgba(8,18,32,.92);border:1px solid rgba(255,255,255,.16);box-shadow:0 12px 34px rgba(0,0,0,.45);max-width:80vw;text-align:center}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+#toast.err{border-color:rgba(255,110,130,.5);color:#ffc7d1}
+#toast.ok{border-color:rgba(125,255,187,.45);color:#c8ffe1}
+@media(max-width:1120px){:root{--sideW:320px}}
+@media(max-width:900px){
+  #app{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) minmax(150px,38vh);padding:10px;gap:10px}
+  #side{max-height:none}
+  .title{font-size:15px}
+  .sub{display:none}
+  .btn{padding:8px 11px;font-size:12px}
+  .chips{max-width:88%;left:8px;top:8px}
+  .chips .chip{font-size:10.5px;padding:5px 8px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="mainWrap">
+    <div class="topbar panel">
+      <div>
+        <div class="title">🗺️ 星海防线 · 地图编辑器</div>
+        <div class="sub">尺寸 / 路线 / 波次 / 出怪 / 外观 · 导出模组或直接试玩</div>
+      </div>
+      <div class="btnRow">
+        <button class="tool active" data-tool="draw">✏️ 绘制</button>
+        <button class="tool" data-tool="erase">🧹 擦除</button>
+        <button class="tool" data-tool="pan">✋ 平移</button>
+        <button class="btn small" id="undoBtn" title="Ctrl+Z">↶ 撤销</button>
+        <button class="btn small" id="redoBtn" title="Ctrl+Y">↷ 重做</button>
+        <button class="btn small" id="clearPathBtn">🗑 清空</button>
+        <button class="btn small" id="saveDraftBtn">💾 草稿</button>
+        <button class="btn small" id="loadDraftBtn">📂 读草稿</button>
+        <a class="btn small" href="./index.html" target="_blank" rel="noopener">🎮 返回游戏</a>
+      </div>
+    </div>
+    <div id="stageCard" class="panel">
+      <div id="canvasBox">
+        <canvas id="editCanvas"></canvas>
+        <div class="chips">
+          <div class="chip">单指点/拖 = 绘制路线（跨格自动补全）</div>
+          <div class="chip">双指拖动 = 平移 · 选「✋」单指也能平移</div>
+          <div class="chip">鼠标：左键绘制 · 右键平移 · 滚轮无缩放</div>
+        </div>
+        <div id="miniWrap">
+          <canvas id="miniCanvas" width="220" height="150"></canvas>
+        </div>
+      </div>
+      <div class="statusLine">
+        <span>路径 <b id="statLen">0</b> 格</span>
+        <span>空地 <b id="statFree">0</b> 格</span>
+        <span>尺寸 <b id="statSize">12×9</b></span>
+        <span>血量倍率 <b id="statHp">×1.00</b></span>
+        <span id="statWarn" style="color:var(--rose)"></span>
+      </div>
+    </div>
+  </div>
+
+  <aside id="side">
+    <div class="panel">
+      <h3>📋 基本信息</h3>
+      <div class="field">
+        <label>地图名称</label>
+        <input type="text" id="mapName" value="新地图">
+      </div>
+      <div class="field">
+        <label>地图 ID（英文/数字，可自动生成）</label>
+        <div style="display:flex;gap:6px">
+          <input type="text" id="mapId" placeholder="留空则自动生成" style="flex:1">
+          <button class="btn small" id="genIdBtn">自动</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Boss 显示名称（地图卡片上展示）</label>
+        <input type="text" id="bossName" value="神秘敌人">
+      </div>
+      <div class="field">
+        <label>地图描述</label>
+        <textarea id="mapDesc" placeholder="例如：路径曲折，适合冰塔控场。"></textarea>
+      </div>
+      <div class="footerTip" id="tplTip" style="margin-bottom:8px">想从现成地图改？载入内置地图作为底稿：</div>
+      <div class="tplRow" id="tplRow"></div>
+    </div>
+
+    <div class="panel">
+      <h3>📐 地图尺寸</h3>
+      <div class="row2">
+        <div class="field">
+          <label>宽度（列数，6-26）</label>
+          <input type="number" id="gridWInput" value="12" min="6" max="26">
+        </div>
+        <div class="field">
+          <label>高度（行数，6-18）</label>
+          <input type="number" id="gridHInput" value="9" min="6" max="18">
+        </div>
+      </div>
+      <button class="btn primary" id="applySizeBtn" style="width:100%">应用尺寸</button>
+      <div class="footerTip">画布会自动缩放到适合窗口；缩小尺寸时，超出新边界的路径点会被截断（可撤销）。</div>
+    </div>
+
+    <div class="panel">
+      <h3>🎨 主题外观</h3>
+      <div class="presetRow" id="presetRow"></div>
+      <div class="colorField"><span>背景色 1</span><input type="color" id="theme0"></div>
+      <div class="colorField"><span>背景色 2</span><input type="color" id="theme1"></div>
+      <div class="colorField"><span>背景色 3</span><input type="color" id="theme2"></div>
+      <div class="colorField"><span>道路颜色</span><input type="color" id="roadFill"></div>
+      <div class="colorField"><span>道路边缘</span><input type="color" id="roadEdge"></div>
+      <div class="colorField"><span>草地色 A</span><input type="color" id="grassA"></div>
+      <div class="colorField"><span>草地色 B</span><input type="color" id="grassB"></div>
+      <div class="colorField"><span>路径光晕</span><input type="color" id="glow"></div>
+      <div class="colorField"><span>强调色</span><input type="color" id="accentColor"></div>
+      <div class="field" style="margin-top:4px">
+        <label>装饰风格</label>
+        <select id="decoSelect">
+          <option value="forest">森林（树木/岩石）</option>
+          <option value="desert">沙漠（仙人掌/沙丘）</option>
+          <option value="ice">冰原（冰晶）</option>
+          <option value="volcano">熔岩（岩浆石）</option>
+          <option value="none">无装饰</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>🛣️ 路径</h3>
+      <div class="muted">当前路径点：<b id="pointCount">0</b> 个（至少 2 个，且必须是上下左右相邻的连续路线）</div>
+      <div class="pointList" id="pointList"></div>
+      <button class="btn small" id="reversePathBtn" style="width:100%;margin-top:8px">🔄 反转方向（起点 ↔ 终点）</button>
+    </div>
+
+    <div class="panel">
+      <h3>⚔️ 波次与强度</h3>
+      <div class="field">
+        <label>全图敌人血量倍率（hpMul，影响难度）</label>
+        <input type="number" id="hpMulInput" value="1" min="0.5" max="3" step="0.05">
+      </div>
+      <div class="muted" style="margin-bottom:6px">普通敌人数量/速度默认按公式随波次增长：数量 = 基础值 + 波次 × 增量；速度同理。</div>
+      <div class="row2">
+        <div class="field"><label>基础数量</label><input type="number" id="wcCountBase" value="6" min="0"></div>
+        <div class="field"><label>每波数量增量</label><input type="number" id="wcCountGrowth" value="1.9" step="0.1"></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>基础速度</label><input type="number" id="wcSpeedBase" value="44" min="1"></div>
+        <div class="field"><label>每波速度增量</label><input type="number" id="wcSpeedGrowth" value="1.2" step="0.1"></div>
+      </div>
+      <div class="muted" id="wavePreview" style="margin:2px 0 10px"></div>
+
+      <div class="muted" style="margin-bottom:6px">单独波次覆盖（精确指定某一波的数量/速度，留空沿用上面公式）：</div>
+      <div class="row2" style="align-items:end">
+        <div class="field"><label>波次编号</label><input type="number" id="woWave" min="1" placeholder="例如 10"></div>
+        <div class="field"><label>数量（留空=公式）</label><input type="number" id="woCount" min="1" placeholder="可留空"></div>
+      </div>
+      <div class="row2" style="align-items:end;margin-top:-9px">
+        <div class="field"><label>速度（留空=公式）</label><input type="number" id="woSpeed" min="1" placeholder="可留空"></div>
+        <button class="btn primary" id="addOverrideBtn" style="height:36px">＋ 添加/更新</button>
+      </div>
+      <div id="overrideList" style="margin-top:6px"></div>
+    </div>
+
+    <div class="panel">
+      <h3>👹 出怪配置</h3>
+      <div class="muted" style="margin-bottom:6px">勾选允许在本地图出现的 Boss（不勾选 = 使用游戏全部默认 Boss）</div>
+      <div id="bossList"></div>
+      <div class="toggleRow" id="customBossToggleRow" style="margin-top:8px">
+        <span>启用本地图专属自定义 Boss</span>
+        <div class="switch" id="customBossSwitch"><i></i></div>
+      </div>
+      <div class="customBossFields" id="customBossFields" style="display:none">
+        <div class="row2">
+          <div class="field"><label>名称</label><input type="text" id="cbName" value="神秘敌人"></div>
+          <div class="field"><label>图标 (emoji)</label><input type="text" id="cbIcon" value="👾"></div>
+        </div>
+        <div class="colorField"><span>颜色</span><input type="color" id="cbColor" value="#ff6666"></div>
+        <div class="row2">
+          <div class="field"><label>生命倍率</label><input type="number" id="cbHpMul" value="1.5" step="0.1" min="0.1"></div>
+          <div class="field"><label>速度倍率</label><input type="number" id="cbSpeedMul" value="0.9" step="0.1" min="0.1"></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label>护甲（0-0.6）</label><input type="number" id="cbArmor" value="0.1" step="0.02" min="0" max="0.6"></div>
+          <div class="field"><label>召唤小怪数</label><input type="number" id="cbMinions" value="3" min="0"></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label>召唤间隔(秒)</label><input type="number" id="cbSummonRate" value="4" step="0.5" min="1"></div>
+          <div class="field"><label>狂暴召唤间隔(秒)</label><input type="number" id="cbRageSummonRate" value="3" step="0.5" min="1"></div>
+        </div>
+        <div class="field"><label>狂暴召唤数</label><input type="number" id="cbRageMinions" value="5" min="0"></div>
+        <div class="toggleRow"><span>击杀双倍金币奖励</span><div class="switch" id="cbDoubleSwitch"><i></i></div></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>📦 导出 / 试玩</h3>
+      <div id="exportMsg"></div>
+      <button class="btn primary" id="testPlayBtn" style="width:100%;margin-top:8px">▶ 在游戏中直接试玩</button>
+      <button class="btn" id="exportBtn" style="width:100%;margin-top:6px">📦 导出模组文件 (.js)</button>
+      <button class="btn" id="copyBtn" style="width:100%;margin-top:6px">📋 复制模组代码</button>
+      <div class="row2" style="margin-top:6px">
+        <button class="btn small" id="exportJsonBtn">⬇ 导出工程 JSON</button>
+        <button class="btn small" id="importJsonBtn">⬆ 导入工程 JSON</button>
+      </div>
+      <input type="file" id="importJsonInput" accept=".json,application/json" style="display:none">
+      <div class="footerTip">
+        部署到 GitHub Pages：把 <code>index.html</code>（游戏）和 <code>build.html</code>（本编辑器）放进仓库同一目录，开启 Pages 即可。<br>
+        两个页面用相对路径互相跳转，游戏顶栏 / 侧栏的「🗺 编辑器」按钮会打开本页，本页「🎮 返回游戏」回到游戏。<br>
+        试玩会把地图写进浏览器 localStorage 并以 <code>?fromeditor=1</code> 打开游戏（不覆盖自动存档）。<br>
+        手动加载：左侧「🧩 模组」→ 选 .js 文件 → 地图列表选择新地图。
+      </div>
+    </div>
+  </aside>
+</div>
+<div id="toast"></div>
+
+<script>
+(() => {
+'use strict';
+
+/* ═══════════════════════════════════════════════════════════
+   CONSTANTS
+   ═══════════════════════════════════════════════════════════ */
+const CELL_MIN=26, CELL_MAX=58;
+let CELL_PX=42;
+const MIN_GW=6, MAX_GW=26, MIN_GH=6, MAX_GH=18;
+
+// Base game's built-in boss roster (ids must match the game's BOSS_TYPES)
+const BASE_BOSSES = [
+  { id:'guardian', name:'铁甲卫兵', icon:'🛡' },
+  { id:'phantom',  name:'疾风幽魂', icon:'💨' },
+  { id:'warlord',  name:'虚空领主', icon:'👑' },
+  { id:'swarm',    name:'蜂群母舰', icon:'🐝' },
+  { id:'titan',    name:'泰坦领主', icon:'💥' },
+  { id:'shadow',   name:'暗影刺客', icon:'🌑' },
+  { id:'colossus', name:'混沌巨神', icon:'🗿' },
+];
+
+const PRESETS = {
+  forest:  { name:'森林', theme:['#061420','#0e2035','#1c3450'], roadFill:'#485a44', roadEdge:'#608258', grassA:'#0c1824', grassB:'#0a141e', glow:'#52e68c', accentColor:'#4ade80', deco:'forest' },
+  desert:  { name:'沙漠', theme:['#1a120e','#2b1a12','#4a2e18'], roadFill:'#6e583c', roadEdge:'#aa8250', grassA:'#20140c', grassB:'#1a100a', glow:'#ffbe50', accentColor:'#fbbf24', deco:'desert' },
+  ice:     { name:'冰原', theme:['#061522','#0f2640','#1e4470'], roadFill:'#506e8c', roadEdge:'#78b4dc', grassA:'#081426', grassB:'#061020', glow:'#64dcff', accentColor:'#67e8f9', deco:'ice' },
+  volcano: { name:'熔岩', theme:['#1a0a08','#2e1210','#5a2018'], roadFill:'#8c3c1e', roadEdge:'#dc6428', grassA:'#1e0a08', grassB:'#180806', glow:'#ff501e', accentColor:'#f97316', deco:'volcano' },
+  night:   { name:'暗夜', theme:['#050510','#0c0c22','#181838'], roadFill:'#3c3c58', roadEdge:'#6868a0', grassA:'#0a0a18', grassB:'#080814', glow:'#8b7cff', accentColor:'#b38cff', deco:'none' },
+};
+
+/* 与游戏内置的 4 张地图完全一致（作为可编辑底稿） */
+const BUILTIN_MAPS = [
+  {
+    id:'forest', name:'幽林前线', bossName:'古树巨卫', desc:'弯折多，适合炮塔与冰塔。', hpMul:1,
+    theme:['#061420','#0e2035','#1c3450'], roadFill:'#485a44', roadEdge:'#608258',
+    grassA:'#0c1824', grassB:'#0a141e', glow:'#52e68c', accentColor:'#4ade80', deco:'forest',
+    path:[[0,3],[1,3],[2,3],[3,3],[3,2],[3,1],[4,1],[5,1],[6,1],[6,2],[6,3],[6,4],[5,4],[4,4],[3,4],[2,4],[2,5],[2,6],[2,7],[3,7],[4,7],[5,7],[6,7],[7,7],[8,7],[9,7],[10,7],[10,6],[10,5],[10,4],[10,3],[11,3]]
+  },
+  {
+    id:'desert', name:'沙脊裂谷', bossName:'沙暴统领', desc:'开阔地形，激光塔很强。', hpMul:1.12,
+    theme:['#1a120e','#2b1a12','#4a2e18'], roadFill:'#6e583c', roadEdge:'#aa8250',
+    grassA:'#20140c', grassB:'#1a100a', glow:'#ffbe50', accentColor:'#fbbf24', deco:'desert',
+    path:[[0,1],[1,1],[2,1],[3,1],[4,1],[5,1],[6,1],[6,2],[6,3],[6,4],[7,4],[8,4],[9,4],[9,3],[9,2],[10,2],[11,2],[11,3],[11,4],[11,5],[10,5],[9,5],[8,5],[7,5],[6,5],[5,5],[4,5],[3,5],[2,5],[2,6],[2,7],[3,7],[4,7],[5,7],[6,7],[7,7],[8,7],[9,7],[10,7],[11,7]]
+  },
+  {
+    id:'ice', name:'极光冰原', bossName:'霜脊王兽', desc:'路径极长，适合消耗流打法。', hpMul:1.06,
+    theme:['#061522','#0f2640','#1e4470'], roadFill:'#506e8c', roadEdge:'#78b4dc',
+    grassA:'#081426', grassB:'#061020', glow:'#64dcff', accentColor:'#67e8f9', deco:'ice',
+    path:[[0,8],[1,8],[2,8],[3,8],[4,8],[5,8],[6,8],[7,8],[8,8],[9,8],[10,8],[10,7],[10,6],[10,5],[10,4],[9,4],[8,4],[7,4],[7,3],[7,2],[7,1],[6,1],[5,1],[4,1],[3,1],[3,2],[3,3],[3,4],[3,5],[4,5],[5,5],[6,5],[6,6],[6,7],[5,7],[4,7],[3,7],[2,7],[1,7],[1,6],[1,5],[1,4],[1,3],[1,2],[1,1],[0,1]]
+  },
+  {
+    id:'volcano', name:'熔岩深渊', bossName:'炎魔领主', desc:'地形危险，敌人更强但奖励更高。', hpMul:1.28,
+    theme:['#1a0a08','#2e1210','#5a2018'], roadFill:'#8c3c1e', roadEdge:'#dc6428',
+    grassA:'#1e0a08', grassB:'#180806', glow:'#ff501e', accentColor:'#f97316', deco:'volcano',
+    path:[[0,4],[1,4],[2,4],[2,3],[2,2],[3,2],[4,2],[5,2],[5,3],[5,4],[5,5],[5,6],[6,6],[7,6],[8,6],[8,5],[8,4],[8,3],[8,2],[9,2],[10,2],[10,3],[10,4],[10,5],[10,6],[10,7],[9,7],[8,7],[7,7],[6,7],[5,7],[4,7],[3,7],[2,7],[1,7],[1,6],[1,5],[0,5]]
+  },
+];
+
+/* ═══════════════════════════════════════════════════════════
+   STATE
+   ═══════════════════════════════════════════════════════════ */
+function defaultEd(){
+  return {
+    name:'新地图', id:'', bossName:'神秘敌人', desc:'',
+    gridW:12, gridH:9, hpMul:1,
+    theme:['#061420','#0e2035','#1c3450'],
+    roadFill:'#485a44', roadEdge:'#608258', grassA:'#0c1824', grassB:'#0a141e',
+    glow:'#52e68c', accentColor:'#4ade80', deco:'forest',
+    path:[],
+    waveEnemyCountBase:6, waveEnemyCountGrowth:1.9, waveEnemySpeedBase:44, waveEnemySpeedGrowth:1.2,
+    waveOverrides:{},
+    bossPool:[],
+    customBossEnabled:false,
+    customBoss:{ name:'神秘敌人', icon:'👾', color:'#ff6666', hpMul:1.5, speedMul:.9, armor:.1,
+      summonRate:4, rageSummonRate:3, minions:3, rageMinions:5, doubleReward:false },
+  };
+}
+const ed = defaultEd();
+
+const camera={x:0,y:0};
+let tool='draw';
+let hoverCell=null;
+const history=[], redoStack=[];
+
+const canvas=document.getElementById('editCanvas');
+const ctx=canvas.getContext('2d');
+const miniCanvas=document.getElementById('miniCanvas');
+const mctx=miniCanvas.getContext('2d');
+const DRAFT_KEY='starocean_editor_draft_v2';
+const HANDOFF_KEY='starocean_editor_pending_map';
+
+/* ═══════════════════════════════════════════════════════════
+   HELPERS
+   ═══════════════════════════════════════════════════════════ */
+const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
+function hexToRgb(hex){
+  const h=(hex||'#888888').replace('#','');
+  const v=h.length===3?h.split('').map(c=>c+c).join(''):h;
+  const num=parseInt(v,16)||0x888888;
+  return [(num>>16)&255,(num>>8)&255,num&255];
+}
+function hexToRgba(hex,alpha){ const[r,g,b]=hexToRgb(hex); return `rgba(${r},${g},${b},${alpha})`; }
+function slugify(s){
+  return (s||'').toLowerCase().trim()
+    .replace(/[^a-z0-9\u4e00-\u9fa5]+/g,'_')
+    .replace(/^_+|_+$/g,'') || '';
+}
+function isAdjacent(a,b){ return Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])===1; }
+function pointInPath(x,y){ return ed.path.some(p=>p[0]===x&&p[1]===y); }
+function totalPxW(){ return ed.gridW*CELL_PX; }
+function totalPxH(){ return ed.gridH*CELL_PX; }
+function needsPan(){ return totalPxW()>viewport.w+1 || totalPxH()>viewport.h+1; }
+
+let toastTimer=null;
+function toast(msg,kind){
+  const el=document.getElementById('toast');
+  el.textContent=msg;
+  el.className='show '+(kind||'');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>{ el.className=kind||''; },2600);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CANVAS SIZE / VIEWPORT (auto-fit cell size)
+   ═══════════════════════════════════════════════════════════ */
+let viewport={w:0,h:0,dpr:1};
+function fitCanvas(){
+  const box=document.getElementById('canvasBox'); const rect=box.getBoundingClientRect();
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  canvas.width=Math.max(2,Math.floor(rect.width*dpr)); canvas.height=Math.max(2,Math.floor(rect.height*dpr));
+  canvas.style.width=rect.width+'px'; canvas.style.height=rect.height+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  viewport={w:rect.width,h:rect.height,dpr};
+  const fit=Math.min((rect.width-8)/ed.gridW,(rect.height-8)/ed.gridH);
+  CELL_PX=clamp(Math.floor(fit),CELL_MIN,CELL_MAX);
+  clampCamera();
+  draw();
+}
+window.addEventListener('resize',fitCanvas);
+
+function clampCamera(){
+  const tw=totalPxW(), th=totalPxH();
+  if(tw<=viewport.w) camera.x=-(viewport.w-tw)/2;
+  else camera.x=clamp(camera.x,0,tw-viewport.w);
+  if(th<=viewport.h) camera.y=-(viewport.h-th)/2;
+  else camera.y=clamp(camera.y,0,th-viewport.h);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MINIMAP
+   ═══════════════════════════════════════════════════════════ */
+function updateMiniVisibility(){
+  const show=needsPan();
+  document.getElementById('miniWrap').style.display=show?'block':'none';
+  if(show){
+    const tw=totalPxW(), th=totalPxH();
+    const mw=Math.min(200,Math.max(140,Math.round(viewport.w*.22)));
+    const mh=clamp(Math.round(mw*th/tw),80,190);
+    if(miniCanvas.width!==mw) miniCanvas.width=mw;
+    if(miniCanvas.height!==mh) miniCanvas.height=mh;
+  }
+}
+function miniScaleXY(){ return { sx:miniCanvas.width/totalPxW(), sy:miniCanvas.height/totalPxH() }; }
+function moveCameraByMini(mx,my){
+  const {sx,sy}=miniScaleXY();
+  const worldX=mx/sx, worldY=my/sy;
+  camera.x=worldX-viewport.w/2; camera.y=worldY-viewport.h/2;
+  clampCamera(); draw();
+}
+let miniDragging=false;
+miniCanvas.addEventListener('pointerdown',e=>{
+  miniDragging=true;
+  try{ miniCanvas.setPointerCapture(e.pointerId); }catch(_){}
+  const r=miniCanvas.getBoundingClientRect();
+  moveCameraByMini(e.clientX-r.left,e.clientY-r.top);
+});
+miniCanvas.addEventListener('pointermove',e=>{
+  if(!miniDragging)return;
+  const r=miniCanvas.getBoundingClientRect();
+  moveCameraByMini(e.clientX-r.left,e.clientY-r.top);
+});
+miniCanvas.addEventListener('pointerup',()=>{ miniDragging=false; });
+miniCanvas.addEventListener('pointercancel',()=>{ miniDragging=false; });
+
+function drawMinimap(){
+  if(!needsPan())return;
+  mctx.clearRect(0,0,miniCanvas.width,miniCanvas.height);
+  mctx.fillStyle='rgba(0,0,0,.55)'; mctx.fillRect(0,0,miniCanvas.width,miniCanvas.height);
+  const {sx,sy}=miniScaleXY();
+  const ps=new Set(ed.path.map(p=>p[0]+','+p[1]));
+  for(let y=0;y<ed.gridH;y++)for(let x=0;x<ed.gridW;x++){
+    mctx.fillStyle= ps.has(x+','+y) ? ed.roadFill : ((x+y)%2===0?ed.grassA:ed.grassB);
+    mctx.fillRect(x*CELL_PX*sx,y*CELL_PX*sy,CELL_PX*sx+.5,CELL_PX*sy+.5);
+  }
+  mctx.strokeStyle='#fff'; mctx.lineWidth=2;
+  mctx.strokeRect(camera.x*sx,camera.y*sy,viewport.w*sx,viewport.h*sy);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MAIN CANVAS DRAWING
+   ═══════════════════════════════════════════════════════════ */
+function screenToCell(sx,sy){
+  const wx=sx+camera.x, wy=sy+camera.y;
+  const gx=Math.floor(wx/CELL_PX), gy=Math.floor(wy/CELL_PX);
+  if(gx<0||gy<0||gx>=ed.gridW||gy>=ed.gridH) return null;
+  return [gx,gy];
+}
+function cellCenterPx(x,y){ return { x:x*CELL_PX+CELL_PX/2-camera.x, y:y*CELL_PX+CELL_PX/2-camera.y }; }
+
+function draw(){
+  const w=viewport.w,h=viewport.h;
+  ctx.clearRect(0,0,w,h);
+  const g=ctx.createLinearGradient(0,0,w,h);
+  g.addColorStop(0,ed.theme[0]); g.addColorStop(.45,ed.theme[1]); g.addColorStop(1,ed.theme[2]);
+  ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+
+  const ps=new Set(ed.path.map(p=>p[0]+','+p[1]));
+  for(let y=0;y<ed.gridH;y++)for(let x=0;x<ed.gridW;x++){
+    const ip=ps.has(x+','+y);
+    const px=x*CELL_PX-camera.x, py=y*CELL_PX-camera.y;
+    if(px>w||py>h||px+CELL_PX<0||py+CELL_PX<0) continue;
+    ctx.fillStyle=ip?ed.roadFill:((x+y)%2===0?ed.grassA:ed.grassB);
+    ctx.fillRect(px,py,CELL_PX,CELL_PX);
+    if(ip){
+      ctx.fillStyle=ed.roadEdge;
+      ctx.fillRect(px,py,CELL_PX,2); ctx.fillRect(px,py+CELL_PX-2,CELL_PX,2);
+      ctx.fillRect(px,py,2,CELL_PX); ctx.fillRect(px+CELL_PX-2,py,2,CELL_PX);
+    } else {
+      ctx.strokeStyle='rgba(255,255,255,.04)'; ctx.lineWidth=.5;
+      ctx.strokeRect(px+.25,py+.25,CELL_PX-.5,CELL_PX-.5);
+    }
+  }
+
+  // map border
+  ctx.strokeStyle='rgba(255,255,255,.18)'; ctx.lineWidth=1;
+  ctx.strokeRect(-camera.x+.5,-camera.y+.5,totalPxW()-1,totalPxH()-1);
+
+  if(ed.path.length){
+    ctx.save(); ctx.shadowBlur=20; ctx.shadowColor=ed.glow; ctx.fillStyle=hexToRgba(ed.glow,.32);
+    for(const[x,y] of ed.path){
+      const px=x*CELL_PX-camera.x, py=y*CELL_PX-camera.y;
+      ctx.fillRect(px+4,py+4,CELL_PX-8,CELL_PX-8);
+    }
+    ctx.restore();
+    ctx.save(); ctx.strokeStyle='rgba(255,255,255,.35)'; ctx.lineWidth=Math.max(6,CELL_PX*.16); ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.beginPath();
+    ed.path.forEach((p,i)=>{ const c=cellCenterPx(p[0],p[1]); i?ctx.lineTo(c.x,c.y):ctx.moveTo(c.x,c.y); });
+    ctx.stroke(); ctx.restore();
+
+    const s=cellCenterPx(ed.path[0][0],ed.path[0][1]);
+    ctx.save(); ctx.fillStyle='#4ade80'; ctx.shadowBlur=16; ctx.shadowColor='rgba(74,222,128,.6)';
+    ctx.beginPath(); ctx.arc(s.x,s.y,Math.max(9,CELL_PX*.22),0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.font=`bold ${Math.max(10,CELL_PX*.22)}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('出',s.x,s.y); ctx.restore();
+
+    if(ed.path.length>1){
+      const eLast=ed.path[ed.path.length-1];
+      const e=cellCenterPx(eLast[0],eLast[1]);
+      const r=Math.max(11,CELL_PX*.28);
+      ctx.save(); ctx.fillStyle=ed.accentColor; ctx.shadowBlur=18; ctx.shadowColor=ed.accentColor;
+      ctx.beginPath(); ctx.arc(e.x,e.y,r,0,Math.PI*2); ctx.fill();
+      ctx.font=`${Math.round(r*1.2)}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('🏰',e.x,e.y); ctx.restore();
+    }
+  }
+
+  if(hoverCell){
+    const[hx,hy]=hoverCell;
+    const px=hx*CELL_PX-camera.x, py=hy*CELL_PX-camera.y;
+    let color='rgba(110,231,255,.35)';
+    if(tool==='erase') color='rgba(255,140,140,.35)';
+    if(ed.path.length){
+      const last=ed.path[ed.path.length-1];
+      const prev=ed.path.length>=2?ed.path[ed.path.length-2]:null;
+      if(last[0]===hx&&last[1]===hy) color='rgba(255,255,255,.25)';
+      else if(prev&&prev[0]===hx&&prev[1]===hy) color='rgba(255,140,140,.4)';
+      else if(pointInPath(hx,hy)) color=tool==='erase'?'rgba(255,110,130,.45)':'rgba(255,140,140,.22)';
+    }
+    ctx.fillStyle=color; ctx.fillRect(px+2,py+2,CELL_PX-4,CELL_PX-4);
+  }
+
+  drawMinimap();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   UNDO / REDO
+   ═══════════════════════════════════════════════════════════ */
+function snapshotPath(){ return ed.path.map(p=>[p[0],p[1]]); }
+function pushHistory(){
+  history.push(snapshotPath());
+  if(history.length>80) history.shift();
+  redoStack.length=0;
+  updateUndoButtons();
+}
+function updateUndoButtons(){
+  const u=document.getElementById('undoBtn'), r=document.getElementById('redoBtn');
+  if(u) u.disabled=!history.length;
+  if(r) r.disabled=!redoStack.length;
+}
+function undo(){
+  if(!history.length)return;
+  redoStack.push(snapshotPath());
+  ed.path=history.pop();
+  refreshPathUI(); draw(); updateUndoButtons(); toast('已撤销一步');
+}
+function redo(){
+  if(!redoStack.length)return;
+  history.push(snapshotPath());
+  ed.path=redoStack.pop();
+  refreshPathUI(); draw(); updateUndoButtons(); toast('已重做一步');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PATH DRAWING (paintbrush) + ERASE
+   ═══════════════════════════════════════════════════════════ */
+// Walks an orthogonal staircase, one grid step at a time — a fast drag that
+// skips several cells still produces a clean, fully connected path.
+function walkSteps(from,to){
+  let [x,y]=from; const steps=[];
+  let guard=0;
+  while((x!==to[0]||y!==to[1])&&guard++<2000){
+    const dx=to[0]-x, dy=to[1]-y;
+    if(Math.abs(dx)>=Math.abs(dy)&&dx!==0) x+=Math.sign(dx);
+    else if(dy!==0) y+=Math.sign(dy);
+    else break;
+    steps.push([x,y]);
+  }
+  return steps;
+}
+
+function paintTo(cell){
+  if(!cell) return;
+  const [x,y]=cell;
+  if(ed.path.length===0){ ed.path.push([x,y]); refreshPathUI(); return; }
+  const last=ed.path[ed.path.length-1];
+  if(last[0]===x&&last[1]===y) return;
+  if(ed.path.length>=2){
+    const prev=ed.path[ed.path.length-2];
+    if(prev[0]===x&&prev[1]===y){ ed.path.pop(); refreshPathUI(); return; } // dragged backward = erase
+  }
+  const steps=isAdjacent(last,[x,y])?[[x,y]]:walkSteps(last,[x,y]);
+  let blocked=false;
+  for(const s of steps){
+    const cur=ed.path[ed.path.length-1];
+    if(s[0]===cur[0]&&s[1]===cur[1]) continue;
+    if(ed.path.length>=2){
+      const p2=ed.path[ed.path.length-2];
+      if(p2[0]===s[0]&&p2[1]===s[1]){ ed.path.pop(); continue; }
+    }
+    if(pointInPath(s[0],s[1])){ blocked=true; break; }
+    ed.path.push(s);
+  }
+  if(blocked) toast('路径不能与自身交叉，已在交叉点停止延伸。','err');
+  refreshPathUI();
+}
+
+// 擦除：点到路径上的格子 → 从该格之后全部删除（该格成为新的终点）
+function eraseAt(cell){
+  if(!cell)return;
+  const idx=ed.path.findIndex(p=>p[0]===cell[0]&&p[1]===cell[1]);
+  if(idx<0) return false;
+  ed.path=ed.path.slice(0,idx+1);
+  refreshPathUI();
+  return true;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SIDEBAR UI
+   ═══════════════════════════════════════════════════════════ */
+function pathStats(){
+  const len=ed.path.length;
+  const free=ed.gridW*ed.gridH-len;
+  return {len,free};
+}
+function refreshPathUI(){
+  const {len,free}=pathStats();
+  document.getElementById('pointCount').textContent=len;
+  document.getElementById('statLen').textContent=len;
+  document.getElementById('statFree').textContent=Math.max(0,free);
+  document.getElementById('statSize').textContent=`${ed.gridW}×${ed.gridH}`;
+  document.getElementById('statHp').textContent='×'+Number(ed.hpMul||1).toFixed(2);
+  const warn=document.getElementById('statWarn');
+  let bad='';
+  for(let i=1;i<ed.path.length;i++){
+    if(!isAdjacent(ed.path[i-1],ed.path[i])){ bad='路径有断点，导出前请修正'; break; }
+  }
+  warn.textContent=bad;
+  const list=document.getElementById('pointList');
+  if(!ed.path.length){ list.innerHTML='<span class="muted">尚未绘制路径</span>'; }
+  else {
+    list.innerHTML=ed.path.map((p,i)=>{
+      const isStart=i===0, isEnd=i===ed.path.length-1;
+      const tag=isStart?'（起点）':isEnd?'（终点）':'';
+      return `<span class="pointTag" title="点击从此处截断" data-cut="${i}">${i+1}: (${p[0]},${p[1]})${tag}</span>`;
+    }).join('');
+  }
+  updateUndoButtons();
+  updateMiniVisibility();
+  scheduleDraft();
+}
+document.getElementById('pointList').addEventListener('click',e=>{
+  const t=e.target.closest('[data-cut]'); if(!t)return;
+  const i=Number(t.dataset.cut);
+  if(i>=ed.path.length-1)return;
+  pushHistory();
+  ed.path=ed.path.slice(0,i+1);
+  refreshPathUI(); draw(); toast(`已截断到第 ${i+1} 个点`);
+});
+
+document.getElementById('mapName').addEventListener('input',e=>{
+  ed.name=e.target.value;
+  document.getElementById('statWarn').textContent='';
+  scheduleDraft();
+});
+document.getElementById('mapId').addEventListener('input',e=>{ ed.id=slugify(e.target.value); scheduleDraft(); });
+document.getElementById('genIdBtn').onclick=()=>{
+  const id=slugify(ed.name)||('custom_'+Date.now().toString(36));
+  ed.id=id; document.getElementById('mapId').value=id; scheduleDraft(); toast('已生成 ID：'+id,'ok');
+};
+document.getElementById('bossName').addEventListener('input',e=>{ed.bossName=e.target.value;scheduleDraft();});
+document.getElementById('mapDesc').addEventListener('input',e=>{ed.desc=e.target.value;scheduleDraft();});
+
+document.getElementById('undoBtn').onclick=undo;
+document.getElementById('redoBtn').onclick=redo;
+document.getElementById('clearPathBtn').onclick=()=>{
+  if(!ed.path.length)return;
+  pushHistory(); ed.path=[]; refreshPathUI(); draw(); toast('已清空路径（可撤销）');
+};
+document.getElementById('reversePathBtn').onclick=()=>{
+  if(ed.path.length<2)return;
+  pushHistory(); ed.path.reverse(); refreshPathUI(); draw(); toast('已反转路径方向','ok');
+};
+
+document.getElementById('applySizeBtn').onclick=()=>{
+  const w=clamp(parseInt(document.getElementById('gridWInput').value)||12,MIN_GW,MAX_GW);
+  const h=clamp(parseInt(document.getElementById('gridHInput').value)||9,MIN_GH,MAX_GH);
+  document.getElementById('gridWInput').value=w; document.getElementById('gridHInput').value=h;
+  if(w===ed.gridW&&h===ed.gridH){ fitCanvas(); return; }
+  pushHistory();
+  ed.gridW=w; ed.gridH=h;
+  const cut=ed.path.findIndex(([x,y])=>x>=w||y>=h);
+  if(cut>=0){ ed.path=ed.path.slice(0,cut); toast('尺寸缩小，超出新边界的路径点已被截断（可撤销）。','err'); }
+  refreshPathUI(); fitCanvas();
+};
+
+/* ── Wave intensity ── */
+function waveEnemyPreview(wave){
+  const ov=ed.waveOverrides[wave];
+  const count=(ov&&ov.count!=null)?ov.count:Math.floor(ed.waveEnemyCountBase+wave*ed.waveEnemyCountGrowth);
+  const speed=(ov&&ov.speed!=null)?ov.speed:Math.round(ed.waveEnemySpeedBase+wave*ed.waveEnemySpeedGrowth);
+  return {count,speed};
+}
+function refreshWavePreview(){
+  const sampleWaves=[1,5,10,20];
+  const txt=sampleWaves.map(w=>{const p=waveEnemyPreview(w); return `第${w}波≈${p.count}只/速度${Math.round(p.speed)}`;}).join('　');
+  document.getElementById('wavePreview').textContent='预览：'+txt;
+}
+function refreshOverrideList(){
+  const el=document.getElementById('overrideList');
+  const waves=Object.keys(ed.waveOverrides).map(Number).sort((a,b)=>a-b);
+  if(waves.length===0){ el.innerHTML='<div class="muted">尚未添加单独波次覆盖</div>'; return; }
+  el.innerHTML=waves.map(w=>{
+    const ov=ed.waveOverrides[w];
+    const parts=[];
+    if(ov.count!=null) parts.push('数量='+ov.count);
+    if(ov.speed!=null) parts.push('速度='+ov.speed);
+    return `<div class="overrideRow"><b>第${w}波</b><span>${parts.join(' · ')||'（空）'}</span><button data-rmwave="${w}">删除</button></div>`;
+  }).join('');
+}
+document.getElementById('overrideList').addEventListener('click',e=>{
+  const b=e.target.closest('[data-rmwave]'); if(!b)return;
+  delete ed.waveOverrides[b.dataset.rmwave];
+  refreshOverrideList(); refreshWavePreview(); scheduleDraft();
+});
+['wcCountBase','wcCountGrowth','wcSpeedBase','wcSpeedGrowth'].forEach(id=>{
+  document.getElementById(id).addEventListener('input',e=>{
+    const map={wcCountBase:'waveEnemyCountBase',wcCountGrowth:'waveEnemyCountGrowth',wcSpeedBase:'waveEnemySpeedBase',wcSpeedGrowth:'waveEnemySpeedGrowth'};
+    ed[map[id]]=parseFloat(e.target.value)||0;
+    refreshWavePreview(); scheduleDraft();
+  });
+});
+document.getElementById('hpMulInput').addEventListener('input',e=>{
+  ed.hpMul=clamp(parseFloat(e.target.value)||1,0.5,3);
+  document.getElementById('statHp').textContent='×'+Number(ed.hpMul).toFixed(2);
+  scheduleDraft();
+});
+document.getElementById('addOverrideBtn').onclick=()=>{
+  const waveEl=document.getElementById('woWave'), countEl=document.getElementById('woCount'), speedEl=document.getElementById('woSpeed');
+  if(!waveEl.value.trim()){ toast('请先填写有效的波次编号。','err'); return; }
+  const wave=Math.max(1,Math.round(parseFloat(waveEl.value)));
+  if(!wave||isNaN(wave)){ toast('请先填写有效的波次编号。','err'); return; }
+  const countRaw=countEl.value.trim(), speedRaw=speedEl.value.trim();
+  if(countRaw===''&&speedRaw===''){ toast('数量和速度至少填写一项。','err'); return; }
+  const entry={};
+  if(countRaw!=='') entry.count=Math.max(1,Math.round(parseFloat(countRaw)));
+  if(speedRaw!=='') entry.speed=Math.max(1,parseFloat(speedRaw));
+  ed.waveOverrides[wave]=entry;
+  waveEl.value=''; countEl.value=''; speedEl.value='';
+  refreshOverrideList(); refreshWavePreview(); scheduleDraft();
+  toast(`已设置第${wave}波覆盖。`,'ok');
+};
+
+/* ── Theme colors ── */
+function syncColorInputs(){
+  document.getElementById('theme0').value=ed.theme[0];
+  document.getElementById('theme1').value=ed.theme[1];
+  document.getElementById('theme2').value=ed.theme[2];
+  document.getElementById('roadFill').value=ed.roadFill;
+  document.getElementById('roadEdge').value=ed.roadEdge;
+  document.getElementById('grassA').value=ed.grassA;
+  document.getElementById('grassB').value=ed.grassB;
+  document.getElementById('glow').value=ed.glow;
+  document.getElementById('accentColor').value=ed.accentColor;
+  document.getElementById('decoSelect').value=ed.deco;
+}
+['theme0','theme1','theme2'].forEach((id,i)=>document.getElementById(id).addEventListener('input',e=>{ed.theme[i]=e.target.value;draw();scheduleDraft();}));
+document.getElementById('roadFill').addEventListener('input',e=>{ed.roadFill=e.target.value;draw();scheduleDraft();});
+document.getElementById('roadEdge').addEventListener('input',e=>{ed.roadEdge=e.target.value;draw();scheduleDraft();});
+document.getElementById('grassA').addEventListener('input',e=>{ed.grassA=e.target.value;draw();scheduleDraft();});
+document.getElementById('grassB').addEventListener('input',e=>{ed.grassB=e.target.value;draw();scheduleDraft();});
+document.getElementById('glow').addEventListener('input',e=>{ed.glow=e.target.value;draw();scheduleDraft();});
+document.getElementById('accentColor').addEventListener('input',e=>{ed.accentColor=e.target.value;draw();scheduleDraft();});
+document.getElementById('decoSelect').addEventListener('change',e=>{ed.deco=e.target.value;scheduleDraft();});
+
+const presetRow=document.getElementById('presetRow');
+presetRow.innerHTML=Object.entries(PRESETS).map(([k,p])=>`<button class="presetBtn" data-preset="${k}">${p.name}</button>`).join('');
+presetRow.addEventListener('click',e=>{
+  const b=e.target.closest('[data-preset]'); if(!b)return;
+  const p=PRESETS[b.dataset.preset];
+  Object.assign(ed,{theme:[...p.theme],roadFill:p.roadFill,roadEdge:p.roadEdge,grassA:p.grassA,grassB:p.grassB,glow:p.glow,accentColor:p.accentColor,deco:p.deco});
+  syncColorInputs(); draw(); scheduleDraft();
+});
+
+/* ── Built-in map templates ── */
+const tplRow=document.getElementById('tplRow');
+tplRow.innerHTML=BUILTIN_MAPS.map(m=>`<button class="tplBtn" data-tpl="${m.id}"><b>${m.name}</b><span>${m.gridW||12}×${m.gridH||9} · 难度×${m.hpMul.toFixed(2)}</span></button>`).join('');
+tplRow.addEventListener('click',e=>{
+  const b=e.target.closest('[data-tpl]'); if(!b)return;
+  const m=BUILTIN_MAPS.find(x=>x.id===b.dataset.tpl); if(!m)return;
+  if(ed.path.length&&!confirm('载入模板会替换当前路径与外观，确定继续吗？')) return;
+  pushHistory();
+  Object.assign(ed,{
+    name:m.name+'（副本）', id:'', bossName:m.bossName, desc:m.desc,
+    gridW:12, gridH:9, hpMul:m.hpMul,
+    theme:[...m.theme], roadFill:m.roadFill, roadEdge:m.roadEdge,
+    grassA:m.grassA, grassB:m.grassB, glow:m.glow, accentColor:m.accentColor, deco:m.deco,
+    path:m.path.map(p=>[p[0],p[1]]),
+  });
+  applyEdToUI();
+  toast('已载入模板：'+m.name,'ok');
+});
+
+/* ── Boss pool ── */
+const bossListEl=document.getElementById('bossList');
+bossListEl.innerHTML=BASE_BOSSES.map(b=>`
+  <label class="bossItem"><input type="checkbox" data-boss="${b.id}"> ${b.icon} ${b.name}</label>
+`).join('');
+bossListEl.addEventListener('change',e=>{
+  const cb=e.target.closest('[data-boss]'); if(!cb)return;
+  const id=cb.dataset.boss;
+  if(cb.checked){ if(!ed.bossPool.includes(id)) ed.bossPool.push(id); }
+  else{ ed.bossPool=ed.bossPool.filter(x=>x!==id); }
+  scheduleDraft();
+});
+
+function bindSwitch(elId,getter,setter){
+  const el=document.getElementById(elId);
+  el.onclick=()=>{ const v=!getter(); setter(v); el.classList.toggle('on',v); scheduleDraft(); };
+}
+bindSwitch('customBossSwitch',()=>ed.customBossEnabled,v=>{
+  ed.customBossEnabled=v;
+  document.getElementById('customBossFields').style.display=v?'block':'none';
+});
+bindSwitch('cbDoubleSwitch',()=>ed.customBoss.doubleReward,v=>{ed.customBoss.doubleReward=v;});
+
+const CB_FIELDS={cbName:'name',cbIcon:'icon',cbColor:'color',cbHpMul:'hpMul',cbSpeedMul:'speedMul',
+  cbArmor:'armor',cbSummonRate:'summonRate',cbRageSummonRate:'rageSummonRate',cbMinions:'minions',cbRageMinions:'rageMinions'};
+const CB_NUM=['hpMul','speedMul','armor','summonRate','rageSummonRate','minions','rageMinions'];
+Object.entries(CB_FIELDS).forEach(([id,key])=>{
+  document.getElementById(id).addEventListener('input',e=>{
+    const val=e.target.value;
+    ed.customBoss[key]=CB_NUM.includes(key)?(parseFloat(val)||0):val;
+    scheduleDraft();
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════
+   INPUT — pointer events, mouse + touch
+   ═══════════════════════════════════════════════════════════ */
+const pointers=new Map();
+let drawing=false, panning=false, twoFinger=false;
+let lastPainted=null, panStart=null, panLastMid=null;
+
+canvas.addEventListener('contextmenu',e=>e.preventDefault());
+
+function localPoint(e){
+  const r=canvas.getBoundingClientRect();
+  return { x:e.clientX-r.left, y:e.clientY-r.top };
+}
+function midPoint(){
+  const arr=[...pointers.values()];
+  return { x:(arr[0].x+arr[1].x)/2, y:(arr[0].y+arr[1].y)/2 };
+}
+function setTool(t){
+  tool=t;
+  document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('active',b.dataset.tool===t));
+  canvas.style.cursor=t==='pan'?'grab':(t==='erase'?'cell':'crosshair');
+}
+document.querySelectorAll('[data-tool]').forEach(b=>{
+  b.addEventListener('click',()=>setTool(b.dataset.tool));
+});
+
+canvas.addEventListener('pointerdown',e=>{
+  if(e.pointerType==='mouse'&&e.button!==0){ panning=true; panStart={x:e.clientX,y:e.clientY,camX:camera.x,camY:camera.y}; return; }
+  pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  try{ canvas.setPointerCapture(e.pointerId); }catch(_){}
+  if(pointers.size>=2){
+    twoFinger=true; drawing=false; lastPainted=null;
+    panLastMid=midPoint();
+    return;
+  }
+  if(tool==='pan'){ panning=true; panStart={x:e.clientX,y:e.clientY,camX:camera.x,camY:camera.y}; return; }
+  const p=localPoint(e); const cell=screenToCell(p.x,p.y);
+  if(!cell) return;
+  pushHistory();
+  drawing=true; lastPainted=cell;
+  if(tool==='erase') eraseAt(cell);
+  else paintTo(cell);
+  hoverCell=cell;
+  draw();
+});
+
+canvas.addEventListener('pointermove',e=>{
+  if(pointers.has(e.pointerId)) pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  const p=localPoint(e);
+
+  if(twoFinger&&pointers.size>=2){
+    const mid=midPoint();
+    if(panLastMid){
+      camera.x-=mid.x-panLastMid.x; camera.y-=mid.y-panLastMid.y;
+      clampCamera(); draw();
+    }
+    panLastMid=mid;
+    return;
+  }
+  if(panning){
+    camera.x=panStart.camX-(e.clientX-panStart.x);
+    camera.y=panStart.camY-(e.clientY-panStart.y);
+    clampCamera(); draw();
+    return;
+  }
+  const cell=screenToCell(p.x,p.y);
+  if(e.pointerType==='mouse'){
+    hoverCell=cell; draw();
+  }
+  if(drawing&&cell){
+    if(!lastPainted||lastPainted[0]!==cell[0]||lastPainted[1]!==cell[1]){
+      if(tool==='erase') eraseAt(cell); else paintTo(cell);
+      lastPainted=cell;
+      hoverCell=cell;
+      draw();
+    }
+  }
+});
+
+function endPointer(e){
+  pointers.delete(e.pointerId);
+  if(pointers.size<2){ twoFinger=false; panLastMid=null; }
+  if(pointers.size===0){ drawing=false; panning=false; lastPainted=null; panStart=null; }
+}
+canvas.addEventListener('pointerup',endPointer);
+canvas.addEventListener('pointercancel',endPointer);
+canvas.addEventListener('pointerleave',e=>{
+  if(e.pointerType==='mouse'&&!drawing){ hoverCell=null; draw(); }
+});
+
+window.addEventListener('keydown',e=>{
+  const tag=(e.target&&e.target.tagName)||'';
+  if(/^(INPUT|TEXTAREA|SELECT)$/.test(tag))return;
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){ e.preventDefault(); e.shiftKey?redo():undo(); return; }
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='y'){ e.preventDefault(); redo(); return; }
+  if(e.key==='Escape'){ document.getElementById('exportMsg').innerHTML=''; return; }
+  const step=CELL_PX*1.5;
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)&&needsPan()){
+    e.preventDefault();
+    if(e.key==='ArrowUp') camera.y-=step;
+    if(e.key==='ArrowDown') camera.y+=step;
+    if(e.key==='ArrowLeft') camera.x-=step;
+    if(e.key==='ArrowRight') camera.x+=step;
+    clampCamera(); draw();
+  }
+});
+window.addEventListener('wheel',e=>{ if(e.target===canvas) e.preventDefault(); },{passive:false});
+
+/* ═══════════════════════════════════════════════════════════
+   VALIDATION + MESSAGE
+   ═══════════════════════════════════════════════════════════ */
+function flashExportMsg(msg,kind){
+  const el=document.getElementById('exportMsg');
+  el.innerHTML=`<div class="msgBox ${kind}">${msg}</div>`;
+}
+function validate(){
+  if(ed.path.length<2) return '路径至少需要 2 个点，请先在画布上点击绘制路径。';
+  for(const [x,y] of ed.path){
+    if(x<0||y<0||x>=ed.gridW||y>=ed.gridH) return '路径有超出地图边界的点，请修正。';
+  }
+  for(let i=1;i<ed.path.length;i++){
+    if(!isAdjacent(ed.path[i-1],ed.path[i])) return `第 ${i} 与第 ${i+1} 个点不相邻，路径必须是连续路线。`;
+  }
+  const seen=new Set();
+  for(const [x,y] of ed.path){
+    const k=x+','+y;
+    if(seen.has(k)) return '路径在自身交叉/重复，请修正。';
+    seen.add(k);
+  }
+  if(ed.gridW<MIN_GW||ed.gridW>MAX_GW||ed.gridH<MIN_GH||ed.gridH>MAX_GH) return '地图尺寸超出允许范围。';
+  const id=ed.id||slugify(ed.name);
+  if(id&&!/^[a-z0-9_\u4e00-\u9fa5-]+$/i.test(id)) return '地图 ID 只能包含字母、数字、中文、下划线和短横线。';
+  return null;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   EXPORT — object literal + register(api, modId)
+   ═══════════════════════════════════════════════════════════ */
+function buildExportPayload(){
+  const mapId=ed.id||slugify(ed.name)||('custom_'+Date.now().toString(36));
+  const bossPoolIds=[...ed.bossPool];
+  let customBossDef=null;
+  if(ed.customBossEnabled){
+    const cbId=mapId+'_boss';
+    const cb=ed.customBoss;
+    customBossDef={
+      id:cbId, name:cb.name||'神秘敌人', icon:cb.icon||'👾',
+      color:hexToRgb(cb.color),
+      hpMul:Number(cb.hpMul)||1, speedMul:Number(cb.speedMul)||1, armor:clamp(Number(cb.armor)||0,0,.6),
+      summonRate:Number(cb.summonRate)||4,
+      rageSummonRate:Number(cb.rageSummonRate)||(Number(cb.summonRate)?Number(cb.summonRate)*.75:3),
+      minions:Number(cb.minions)||3, rageMinions:Number(cb.rageMinions)||5,
+      doubleReward:!!cb.doubleReward,
+    };
+    bossPoolIds.push(cbId);
+  }
+  const mapDef={
+    id:mapId, name:ed.name||'自定义地图', bossName:ed.bossName||'神秘敌人', desc:ed.desc||'',
+    theme:[...ed.theme],
+    roadFill:hexToRgba(ed.roadFill,.85), roadEdge:hexToRgba(ed.roadEdge,.4),
+    grassA:hexToRgba(ed.grassA,.92), grassB:hexToRgba(ed.grassB,.92),
+    glow:hexToRgba(ed.glow,.22), accentColor:ed.accentColor,
+    deco:ed.deco,
+    path:ed.path.map(p=>[p[0],p[1]]),
+    gridW:ed.gridW, gridH:ed.gridH, hpMul:Number(ed.hpMul)||1,
+    bossPool:bossPoolIds,
+    waveEnemyCountBase:ed.waveEnemyCountBase, waveEnemyCountGrowth:ed.waveEnemyCountGrowth,
+    waveEnemySpeedBase:ed.waveEnemySpeedBase, waveEnemySpeedGrowth:ed.waveEnemySpeedGrowth,
+    waveOverrides:{...ed.waveOverrides},
+  };
+  return {mapId,mapDef,customBossDef};
+}
+
+function indent(str,spaces){ return str.split('\n').map(l=>' '.repeat(spaces)+l).join('\n').trimStart(); }
+
+function buildModFileText(){
+  const {mapId,mapDef,customBossDef}=buildExportPayload();
+  const modId=mapId+'_mod';
+  const parts=[];
+  parts.push('{');
+  parts.push(`  id: ${JSON.stringify(modId)},`);
+  parts.push(`  name: ${JSON.stringify((ed.name||'自定义地图')+' 地图包')},`);
+  parts.push(`  desc: ${JSON.stringify('由《星海防线》地图编辑器生成 · '+ed.gridW+'×'+ed.gridH)},`);
+  parts.push(`  register(api, modId){`);
+  if(customBossDef){
+    parts.push(`    api.registerBoss(modId, ${indent(JSON.stringify(customBossDef,null,2),4)});`);
+  }
+  parts.push(`    api.registerMap(modId, ${indent(JSON.stringify(mapDef,null,2),4)});`);
+  parts.push(`  }`);
+  parts.push('}');
+  return {text:parts.join('\n'), mapId};
+}
+
+function downloadText(filename,text,mime){
+  const blob=new Blob([text],{type:mime||'text/plain;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),800);
+}
+
+document.getElementById('exportBtn').onclick=()=>{
+  const err=validate();
+  if(err){ flashExportMsg(err,'err'); toast(err,'err'); return; }
+  const {text,mapId}=buildModFileText();
+  downloadText(`${mapId}_map_mod.js`,text,'application/javascript;charset=utf-8');
+  flashExportMsg(`✅ 已导出 ${mapId}_map_mod.js：游戏内「🧩 模组」→ 选择该文件 → 地图列表选新地图。`,'ok');
+  toast('已导出模组文件','ok');
+};
+
+document.getElementById('copyBtn').onclick=()=>{
+  const err=validate();
+  if(err){ flashExportMsg(err,'err'); toast(err,'err'); return; }
+  const {text}=buildModFileText();
+  const done=()=>{ flashExportMsg('✅ 模组代码已复制，可粘贴到 .js 文件里加载。','ok'); toast('代码已复制','ok'); };
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done).catch(()=>{
+      const ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select();
+      try{ document.execCommand('copy'); done(); }catch(_){ toast('复制失败，请用「导出模组文件」','err'); }
+      ta.remove();
+    });
+  } else {
+    const ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select();
+    try{ document.execCommand('copy'); done(); }catch(_){ toast('复制失败，请用「导出模组文件」','err'); }
+    ta.remove();
+  }
+};
+
+document.getElementById('testPlayBtn').onclick=()=>{
+  const err=validate();
+  if(err){ flashExportMsg(err,'err'); toast(err,'err'); return; }
+  const {mapId,mapDef,customBossDef}=buildExportPayload();
+  try{
+    localStorage.setItem(HANDOFF_KEY,JSON.stringify({mapDef,bossDef:customBossDef,v:2}));
+  }catch(e){
+    flashExportMsg('浏览器禁止了本地存储，请改用「导出模组文件」再拖入游戏。','err');
+    toast('无法写入 localStorage','err');
+    return;
+  }
+  const w=window.open('./index.html?fromeditor=1','_blank');
+  if(!w){ flashExportMsg('新窗口被浏览器拦截，请允许弹窗后重试，或导出模组文件。','err'); return; }
+  flashExportMsg(`▶ 已在游戏里打开《${mapDef.name}》${ed.gridW}×${ed.gridH}，可直接开波试玩。`,'ok');
+};
+
+document.getElementById('exportJsonBtn').onclick=()=>{
+  const data={__map:'starocean_td_map',version:2,ed:JSON.parse(JSON.stringify(ed))};
+  downloadText(`${slugify(ed.name)||'map'}_project.json`,JSON.stringify(data,null,2),'application/json');
+  toast('工程 JSON 已导出','ok');
+};
+document.getElementById('importJsonBtn').onclick=()=>document.getElementById('importJsonInput').click();
+document.getElementById('importJsonInput').addEventListener('change',e=>{
+  const file=e.target.files[0]; if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{
+      const data=JSON.parse(ev.target.result);
+      const src=(data&&data.ed)?data.ed:(data&&data.mapDef?data.mapDef:null);
+      if(!src||!Array.isArray(src.path)) throw new Error('bad');
+      pushHistory();
+      Object.assign(ed,src);
+      ed.customBoss=Object.assign(defaultEd().customBoss,src.customBoss||{});
+      ed.waveOverrides=Object.assign({},src.waveOverrides||{});
+      ed.bossPool=Array.isArray(src.bossPool)?[...src.bossPool]:[];
+      applyEdToUI();
+      toast('工程已导入','ok');
+      flashExportMsg('✅ 工程已导入，可继续编辑或导出。','ok');
+    }catch(err){ toast('读取失败：不是本编辑器的工程文件','err'); flashExportMsg('读取失败：不是本编辑器的工程文件。','err'); }
+  };
+  reader.readAsText(file);
+  e.target.value='';
+});
+
+/* ═══════════════════════════════════════════════════════════
+   DRAFT — localStorage autosave (+ manual)
+   ═══════════════════════════════════════════════════════════ */
+let draftTimer=null;
+function scheduleDraft(){
+  if(draftTimer) clearTimeout(draftTimer);
+  draftTimer=setTimeout(()=>saveLocalDraft(true),700);
+}
+function saveLocalDraft(silent){
+  try{
+    localStorage.setItem(DRAFT_KEY,JSON.stringify({__draft:'starocean_td_map_draft',version:2,ed}));
+    if(!silent) toast('草稿已保存到本机浏览器','ok');
+  }catch(e){ if(!silent) toast('保存失败：浏览器禁止本地存储','err'); }
+}
+function loadLocalDraft(silent){
+  try{
+    const raw=localStorage.getItem(DRAFT_KEY);
+    if(!raw){ if(!silent) toast('本机没有草稿','err'); return false; }
+    const data=JSON.parse(raw);
+    if(!data||!data.ed) throw new Error('bad');
+    Object.assign(ed,data.ed);
+    ed.customBoss=Object.assign(defaultEd().customBoss,ed.customBoss||{});
+    ed.waveOverrides=Object.assign({},ed.waveOverrides||{});
+    ed.bossPool=Array.isArray(ed.bossPool)?[...ed.bossPool]:[];
+    applyEdToUI();
+    if(!silent) toast('草稿已加载','ok');
+    return true;
+  }catch(e){ if(!silent) toast('草稿读取失败','err'); return false; }
+}
+document.getElementById('saveDraftBtn').onclick=()=>saveLocalDraft(false);
+document.getElementById('loadDraftBtn').onclick=()=>loadLocalDraft(false);
+
+function applyEdToUI(){
+  document.getElementById('mapName').value=ed.name;
+  document.getElementById('mapId').value=ed.id;
+  document.getElementById('bossName').value=ed.bossName;
+  document.getElementById('mapDesc').value=ed.desc;
+  document.getElementById('gridWInput').value=ed.gridW;
+  document.getElementById('gridHInput').value=ed.gridH;
+  document.getElementById('hpMulInput').value=ed.hpMul;
+  document.getElementById('wcCountBase').value=ed.waveEnemyCountBase;
+  document.getElementById('wcCountGrowth').value=ed.waveEnemyCountGrowth;
+  document.getElementById('wcSpeedBase').value=ed.waveEnemySpeedBase;
+  document.getElementById('wcSpeedGrowth').value=ed.waveEnemySpeedGrowth;
+  refreshOverrideList(); refreshWavePreview();
+  syncColorInputs();
+  bossListEl.querySelectorAll('[data-boss]').forEach(cb=>{cb.checked=ed.bossPool.includes(cb.dataset.boss);});
+  document.getElementById('customBossSwitch').classList.toggle('on',ed.customBossEnabled);
+  document.getElementById('customBossFields').style.display=ed.customBossEnabled?'block':'none';
+  document.getElementById('cbDoubleSwitch').classList.toggle('on',!!ed.customBoss.doubleReward);
+  document.getElementById('cbName').value=ed.customBoss.name;
+  document.getElementById('cbIcon').value=ed.customBoss.icon;
+  document.getElementById('cbColor').value=ed.customBoss.color;
+  document.getElementById('cbHpMul').value=ed.customBoss.hpMul;
+  document.getElementById('cbSpeedMul').value=ed.customBoss.speedMul;
+  document.getElementById('cbArmor').value=ed.customBoss.armor;
+  document.getElementById('cbSummonRate').value=ed.customBoss.summonRate;
+  document.getElementById('cbRageSummonRate').value=ed.customBoss.rageSummonRate;
+  document.getElementById('cbMinions').value=ed.customBoss.minions;
+  document.getElementById('cbRageMinions').value=ed.customBoss.rageMinions;
+  refreshPathUI();
+  hoverCell=null;
+  camera.x=0; camera.y=0;
+  fitCanvas();
+  updateMiniVisibility();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   INIT
+   ═══════════════════════════════════════════════════════════ */
+syncColorInputs();
+refreshOverrideList();
+refreshWavePreview();
+applyEdToUI();
+setTool('draw');
+
+// restore last local draft (if any), so a reload never loses work
+if(localStorage.getItem(DRAFT_KEY)){
+  if(loadLocalDraft(true)) toast('已恢复上次编辑的草稿','ok');
+}
+
+fitCanvas();
+updateMiniVisibility();
+refreshPathUI();
+document.getElementById('statHp').textContent='×'+Number(ed.hpMul||1).toFixed(2);
+
+})();
+</script>
+</body>
+</html>
