@@ -70,6 +70,9 @@ canvas{display:block}
 .tplBtn:hover{background:rgba(255,255,255,.12)}
 .tplBtn b{display:block;font-size:12.5px;margin-bottom:1px}
 .tplBtn span{color:var(--muted);font-size:10.5px}
+.routeTabs{display:flex;flex-wrap:wrap;gap:6px}
+.routeTab{padding:6px 9px;border-radius:9px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:#9fb2c9;font-size:11.5px;cursor:pointer}
+.routeTab.active{border-color:rgba(110,231,255,.55);background:rgba(110,231,255,.13);color:#dff3ff}
 .pointList{max-height:120px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
 .pointList::-webkit-scrollbar{width:3px}
 .pointTag{font-size:11px;padding:3px 7px;border-radius:8px;background:rgba(110,231,255,.10);border:1px solid rgba(110,231,255,.2);color:#d8f8ff}
@@ -130,7 +133,8 @@ canvas{display:block}
       <div id="canvasBox">
         <canvas id="editCanvas"></canvas>
         <div class="chips">
-          <div class="chip">单指点/拖 = 绘制路线（跨格自动补全）</div>
+          <div class="chip">单指点/拖 = 绘制当前路线（跨格自动补全）</div>
+          <div class="chip">右侧「＋ 新出生路线」可画多条通往同一基地的路线</div>
           <div class="chip">双指拖动 = 平移 · 选「✋」单指也能平移</div>
           <div class="chip">鼠标：左键绘制 · 右键平移 · 滚轮无缩放</div>
         </div>
@@ -215,10 +219,16 @@ canvas{display:block}
     </div>
 
     <div class="panel">
-      <h3>🛣️ 路径</h3>
-      <div class="muted">当前路径点：<b id="pointCount">0</b> 个（至少 2 个，且必须是上下左右相邻的连续路线）</div>
+      <h3>🛣️ 路径 / 出生路线</h3>
+      <div class="muted" style="margin-bottom:7px">一张地图可以有多条出生路线，所有路线必须汇入<b>同一个基地格</b>。正在编辑：<b id="activeRouteName">路线 1</b></div>
+      <div id="routeTabs" class="routeTabs"></div>
+      <div style="display:flex;gap:6px;margin:8px 0">
+        <button class="btn small" id="addRouteBtn" style="flex:1">＋ 新出生路线</button>
+        <button class="btn small danger" id="delRouteBtn" style="flex:1">删除当前路线</button>
+      </div>
+      <div class="muted">当前路线点：<b id="pointCount">0</b> 个（至少 2 个，且必须是上下左右相邻的连续路线）</div>
       <div class="pointList" id="pointList"></div>
-      <button class="btn small" id="reversePathBtn" style="width:100%;margin-top:8px">🔄 反转方向（起点 ↔ 终点）</button>
+      <button class="btn small" id="reversePathBtn" style="width:100%;margin-top:8px">🔄 反转当前路线（起点 ↔ 终点）</button>
     </div>
 
     <div class="panel">
@@ -359,6 +369,16 @@ const BUILTIN_MAPS = [
     grassA:'#1e0a08', grassB:'#180806', glow:'#ff501e', accentColor:'#f97316', deco:'volcano',
     path:[[0,4],[1,4],[2,4],[2,3],[2,2],[3,2],[4,2],[5,2],[5,3],[5,4],[5,5],[5,6],[6,6],[7,6],[8,6],[8,5],[8,4],[8,3],[8,2],[9,2],[10,2],[10,3],[10,4],[10,5],[10,6],[10,7],[9,7],[8,7],[7,7],[6,7],[5,7],[4,7],[3,7],[2,7],[1,7],[1,6],[1,5],[0,5]]
   },
+  {
+    id:'twin', name:'双轨前哨', bossName:'双子督军', desc:'两条出生路线同时压向基地，中间留出大片建造区。', hpMul:1.15,
+    theme:['#071522','#102a3a','#143a4c'], roadFill:'#3e5666', roadEdge:'#6eb4c8',
+    grassA:'#0a1a26', grassB:'#081622', glow:'#5adcff', accentColor:'#6ee7ff', deco:'ice',
+    gridW:15, gridH:11,
+    paths:[
+      [[0,2],[1,2],[2,2],[3,2],[4,2],[5,2],[6,2],[7,2],[8,2],[9,2],[10,2],[10,3],[10,4],[11,4],[12,4],[13,4],[14,4],[14,5]],
+      [[0,8],[1,8],[2,8],[3,8],[3,7],[3,6],[4,6],[5,6],[6,6],[7,6],[8,6],[9,6],[10,6],[11,6],[12,6],[12,5],[13,5],[14,5]]
+    ]
+  },
 ];
 
 /* ═══════════════════════════════════════════════════════════
@@ -371,7 +391,7 @@ function defaultEd(){
     theme:['#061420','#0e2035','#1c3450'],
     roadFill:'#485a44', roadEdge:'#608258', grassA:'#0c1824', grassB:'#0a141e',
     glow:'#52e68c', accentColor:'#4ade80', deco:'forest',
-    path:[],
+    paths:[[]], activeRoute:0,
     waveEnemyCountBase:6, waveEnemyCountGrowth:1.9, waveEnemySpeedBase:44, waveEnemySpeedGrowth:1.2,
     waveOverrides:{},
     bossPool:[],
@@ -381,6 +401,19 @@ function defaultEd(){
   };
 }
 const ed = defaultEd();
+// 兼容旧代码：ed.path 始终指向“当前正在编辑的路线”
+Object.defineProperty(ed,'path',{
+  configurable:true, enumerable:false,
+  get(){ return ed.paths[ed.activeRoute] || ed.paths[0]; },
+  set(v){ if(!Array.isArray(ed.paths)||!ed.paths.length) ed.paths=[[]]; ed.paths[ed.activeRoute]=v; },
+});
+function normalizeRoutes(){
+  const src = (Array.isArray(ed.paths)&&ed.paths.length) ? ed.paths : [Array.isArray(ed.path)?ed.path:[]];
+  ed.paths = src.map(r=>Array.isArray(r)?r.map(p=>[Number(p[0]),Number(p[1])]):[]);
+  if(!ed.paths.length) ed.paths=[[]];
+  ed.activeRoute = Math.max(0,Math.min(ed.paths.length-1, Number(ed.activeRoute)||0));
+}
+normalizeRoutes();
 
 const camera={x:0,y:0};
 let tool='draw';
@@ -411,7 +444,12 @@ function slugify(s){
     .replace(/^_+|_+$/g,'') || '';
 }
 function isAdjacent(a,b){ return Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])===1; }
-function pointInPath(x,y){ return ed.path.some(p=>p[0]===x&&p[1]===y); }
+function routeBaseCell(){
+  for(const r of ed.paths){ if(r&&r.length) return r[r.length-1]; }
+  return null;
+}
+function allPathCells(){ const a=[]; for(const r of ed.paths) for(const p of r) a.push(p); return a; }
+function pointInPath(x,y){ return ed.paths.some(r=>r.some(p=>p[0]===x&&p[1]===y)); }
 function totalPxW(){ return ed.gridW*CELL_PX; }
 function totalPxH(){ return ed.gridH*CELL_PX; }
 function needsPan(){ return totalPxW()>viewport.w+1 || totalPxH()>viewport.h+1; }
@@ -492,7 +530,7 @@ function drawMinimap(){
   mctx.clearRect(0,0,miniCanvas.width,miniCanvas.height);
   mctx.fillStyle='rgba(0,0,0,.55)'; mctx.fillRect(0,0,miniCanvas.width,miniCanvas.height);
   const {sx,sy}=miniScaleXY();
-  const ps=new Set(ed.path.map(p=>p[0]+','+p[1]));
+  const ps=new Set(allPathCells().map(p=>p[0]+','+p[1]));
   for(let y=0;y<ed.gridH;y++)for(let x=0;x<ed.gridW;x++){
     mctx.fillStyle= ps.has(x+','+y) ? ed.roadFill : ((x+y)%2===0?ed.grassA:ed.grassB);
     mctx.fillRect(x*CELL_PX*sx,y*CELL_PX*sy,CELL_PX*sx+.5,CELL_PX*sy+.5);
@@ -519,7 +557,7 @@ function draw(){
   g.addColorStop(0,ed.theme[0]); g.addColorStop(.45,ed.theme[1]); g.addColorStop(1,ed.theme[2]);
   ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
 
-  const ps=new Set(ed.path.map(p=>p[0]+','+p[1]));
+  const ps=new Set(allPathCells().map(p=>p[0]+','+p[1]));
   for(let y=0;y<ed.gridH;y++)for(let x=0;x<ed.gridW;x++){
     const ip=ps.has(x+','+y);
     const px=x*CELL_PX-camera.x, py=y*CELL_PX-camera.y;
@@ -540,31 +578,47 @@ function draw(){
   ctx.strokeStyle='rgba(255,255,255,.18)'; ctx.lineWidth=1;
   ctx.strokeRect(-camera.x+.5,-camera.y+.5,totalPxW()-1,totalPxH()-1);
 
-  if(ed.path.length){
-    ctx.save(); ctx.shadowBlur=20; ctx.shadowColor=ed.glow; ctx.fillStyle=hexToRgba(ed.glow,.32);
-    for(const[x,y] of ed.path){
-      const px=x*CELL_PX-camera.x, py=y*CELL_PX-camera.y;
-      ctx.fillRect(px+4,py+4,CELL_PX-8,CELL_PX-8);
-    }
+  const anyPath=ps.size>0;
+  if(anyPath){
+    ctx.save(); ctx.shadowBlur=20; ctx.shadowColor=ed.glow;
+    ed.paths.forEach((r,ri)=>{ if(!r.length)return;
+      ctx.fillStyle=hexToRgba(ed.glow,ri===ed.activeRoute?.44:.22);
+      for(const[x,y] of r){ const px=x*CELL_PX-camera.x, py=y*CELL_PX-camera.y; ctx.fillRect(px+4,py+4,CELL_PX-8,CELL_PX-8); }
+    });
     ctx.restore();
-    ctx.save(); ctx.strokeStyle='rgba(255,255,255,.35)'; ctx.lineWidth=Math.max(6,CELL_PX*.16); ctx.lineCap='round'; ctx.lineJoin='round';
-    ctx.beginPath();
-    ed.path.forEach((p,i)=>{ const c=cellCenterPx(p[0],p[1]); i?ctx.lineTo(c.x,c.y):ctx.moveTo(c.x,c.y); });
-    ctx.stroke(); ctx.restore();
 
-    const s=cellCenterPx(ed.path[0][0],ed.path[0][1]);
-    ctx.save(); ctx.fillStyle='#4ade80'; ctx.shadowBlur=16; ctx.shadowColor='rgba(74,222,128,.6)';
-    ctx.beginPath(); ctx.arc(s.x,s.y,Math.max(9,CELL_PX*.22),0,Math.PI*2); ctx.fill();
-    ctx.fillStyle='#fff'; ctx.font=`bold ${Math.max(10,CELL_PX*.22)}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText('出',s.x,s.y); ctx.restore();
+    // 所有路线（活动路线最后画，保证不被其他路线压住）
+    const order=ed.paths.map((_,i)=>i).sort((a,b)=>(a===ed.activeRoute)-(b===ed.activeRoute));
+    order.forEach(ri=>{ const r=ed.paths[ri]; if(r.length<2)return;
+      const active=ri===ed.activeRoute;
+      ctx.save();
+      ctx.strokeStyle=active?'rgba(235,250,255,.78)':'rgba(255,255,255,.26)';
+      ctx.lineWidth=Math.max(active?7:5,CELL_PX*(active?.18:.13));
+      ctx.lineCap='round'; ctx.lineJoin='round';
+      if(active){ ctx.shadowBlur=12; ctx.shadowColor=ed.glow; }
+      ctx.beginPath();
+      r.forEach((p,i)=>{ const c=cellCenterPx(p[0],p[1]); i?ctx.lineTo(c.x,c.y):ctx.moveTo(c.x,c.y); });
+      ctx.stroke(); ctx.restore();
+    });
 
-    if(ed.path.length>1){
-      const eLast=ed.path[ed.path.length-1];
-      const e=cellCenterPx(eLast[0],eLast[1]);
-      const r=Math.max(11,CELL_PX*.28);
+    // 每条路线自己的出生点
+    ed.paths.forEach((r,ri)=>{ if(!r.length)return;
+      const s=cellCenterPx(r[0][0],r[0][1]);
+      const rad=Math.max(9,CELL_PX*.22);
+      ctx.save(); ctx.fillStyle=ri===ed.activeRoute?'#4ade80':'#2f8f63'; ctx.shadowBlur=16; ctx.shadowColor='rgba(74,222,128,.55)';
+      ctx.beginPath(); ctx.arc(s.x,s.y,rad,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#fff'; ctx.font=`bold ${Math.max(9,CELL_PX*.19)}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(String(ri+1),s.x,s.y); ctx.restore();
+    });
+
+    // 共用基地
+    const base=routeBaseCell();
+    if(base){
+      const e=cellCenterPx(base[0],base[1]);
+      const radius=Math.max(11,CELL_PX*.28);
       ctx.save(); ctx.fillStyle=ed.accentColor; ctx.shadowBlur=18; ctx.shadowColor=ed.accentColor;
-      ctx.beginPath(); ctx.arc(e.x,e.y,r,0,Math.PI*2); ctx.fill();
-      ctx.font=`${Math.round(r*1.2)}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.beginPath(); ctx.arc(e.x,e.y,radius,0,Math.PI*2); ctx.fill();
+      ctx.font=`${Math.round(radius*1.2)}px system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle';
       ctx.fillText('🏰',e.x,e.y); ctx.restore();
     }
   }
@@ -590,7 +644,7 @@ function draw(){
 /* ═══════════════════════════════════════════════════════════
    UNDO / REDO
    ═══════════════════════════════════════════════════════════ */
-function snapshotPath(){ return ed.path.map(p=>[p[0],p[1]]); }
+function snapshotPath(){ return {paths:ed.paths.map(r=>r.map(p=>[p[0],p[1]])),active:ed.activeRoute}; }
 function pushHistory(){
   history.push(snapshotPath());
   if(history.length>80) history.shift();
@@ -605,13 +659,15 @@ function updateUndoButtons(){
 function undo(){
   if(!history.length)return;
   redoStack.push(snapshotPath());
-  ed.path=history.pop();
+  const snap=history.pop();
+  ed.paths=snap.paths; ed.activeRoute=clamp(snap.active||0,0,ed.paths.length-1);
   refreshPathUI(); draw(); updateUndoButtons(); toast('已撤销一步');
 }
 function redo(){
   if(!redoStack.length)return;
   history.push(snapshotPath());
-  ed.path=redoStack.pop();
+  const snap=redoStack.pop();
+  ed.paths=snap.paths; ed.activeRoute=clamp(snap.active||0,0,ed.paths.length-1);
   refreshPathUI(); draw(); updateUndoButtons(); toast('已重做一步');
 }
 
@@ -652,7 +708,9 @@ function paintTo(cell){
       const p2=ed.path[ed.path.length-2];
       if(p2[0]===s[0]&&p2[1]===s[1]){ ed.path.pop(); continue; }
     }
-    if(pointInPath(s[0],s[1])){ blocked=true; break; }
+    const base=routeBaseCell();
+    const isSharedBase=base&&base[0]===s[0]&&base[1]===s[1];
+    if(pointInPath(s[0],s[1])&&!isSharedBase){ blocked=true; break; }
     ed.path.push(s);
   }
   if(blocked) toast('路径不能与自身交叉，已在交叉点停止延伸。','err');
@@ -662,10 +720,13 @@ function paintTo(cell){
 // 擦除：点到路径上的格子 → 从该格之后全部删除（该格成为新的终点）
 function eraseAt(cell){
   if(!cell)return;
-  const idx=ed.path.findIndex(p=>p[0]===cell[0]&&p[1]===cell[1]);
-  if(idx<0) return false;
-  ed.path=ed.path.slice(0,idx+1);
+  const ri=ed.paths.findIndex(r=>r.some(p=>p[0]===cell[0]&&p[1]===cell[1]));
+  if(ri<0) return false;
+  ed.activeRoute=ri;
+  const idx=ed.paths[ri].findIndex(p=>p[0]===cell[0]&&p[1]===cell[1]);
+  ed.paths[ri]=ed.paths[ri].slice(0,idx+1);
   refreshPathUI();
+  draw();
   return true;
 }
 
@@ -673,29 +734,47 @@ function eraseAt(cell){
    SIDEBAR UI
    ═══════════════════════════════════════════════════════════ */
 function pathStats(){
-  const len=ed.path.length;
-  const free=ed.gridW*ed.gridH-len;
-  return {len,free};
+  const cells=new Set();
+  let len=0, maxLen=0;
+  for(const r of ed.paths){ len+=r.length; maxLen=Math.max(maxLen,r.length); for(const p of r) cells.add(p[0]+','+p[1]); }
+  return {len,free:ed.gridW*ed.gridH-cells.size,maxLen};
 }
 function refreshPathUI(){
   const {len,free}=pathStats();
-  document.getElementById('pointCount').textContent=len;
+  document.getElementById('pointCount').textContent=ed.path.length;
   document.getElementById('statLen').textContent=len;
   document.getElementById('statFree').textContent=Math.max(0,free);
   document.getElementById('statSize').textContent=`${ed.gridW}×${ed.gridH}`;
   document.getElementById('statHp').textContent='×'+Number(ed.hpMul||1).toFixed(2);
   const warn=document.getElementById('statWarn');
   let bad='';
-  for(let i=1;i<ed.path.length;i++){
-    if(!isAdjacent(ed.path[i-1],ed.path[i])){ bad='路径有断点，导出前请修正'; break; }
+  const base=routeBaseCell();
+  for(const r of ed.paths){
+    if(r.length<2){ bad='有路线尚未完成（至少 2 个点）'; break; }
+    for(let i=1;i<r.length;i++){
+      if(!isAdjacent(r[i-1],r[i])){ bad='有路线存在断点，导出前请修正'; break; }
+    }
+    if(r.length>=2&&base){
+      const end=r[r.length-1];
+      if(end[0]!==base[0]||end[1]!==base[1]){ bad='各路线终点必须汇入同一基地格'; break; }
+    }
   }
   warn.textContent=bad;
+  const activeName=document.getElementById('activeRouteName');
+  if(activeName) activeName.textContent='路线 '+(ed.activeRoute+1);
+  const tabs=document.getElementById('routeTabs');
+  if(tabs){
+    tabs.innerHTML=ed.paths.map((r,i)=>{
+      const nm=`路线 ${i+1}`;
+      return `<div class="routeTab${i===ed.activeRoute?' active':''}" data-route="${i}"><b>${nm}</b> · ${r.length}格${i===0?' · 主基地':''}</div>`;
+    }).join('');
+  }
   const list=document.getElementById('pointList');
-  if(!ed.path.length){ list.innerHTML='<span class="muted">尚未绘制路径</span>'; }
+  if(!ed.path.length){ list.innerHTML='<span class="muted">本路线尚未绘制</span>'; }
   else {
     list.innerHTML=ed.path.map((p,i)=>{
       const isStart=i===0, isEnd=i===ed.path.length-1;
-      const tag=isStart?'（起点）':isEnd?'（终点）':'';
+      const tag=isStart?'（出生点）':isEnd?'（基地）':'';
       return `<span class="pointTag" title="点击从此处截断" data-cut="${i}">${i+1}: (${p[0]},${p[1]})${tag}</span>`;
     }).join('');
   }
@@ -703,6 +782,25 @@ function refreshPathUI(){
   updateMiniVisibility();
   scheduleDraft();
 }
+document.getElementById('routeTabs').addEventListener('click',e=>{
+  const t=e.target.closest('[data-route]'); if(!t)return;
+  ed.activeRoute=Number(t.dataset.route);
+  refreshPathUI(); draw();
+  toast('正在编辑路线 '+(ed.activeRoute+1));
+});
+document.getElementById('addRouteBtn').onclick=()=>{
+  pushHistory();
+  ed.paths.push([]); ed.activeRoute=ed.paths.length-1;
+  refreshPathUI(); draw(); toast('已新增路线，请从出生点点到现有基地格','ok');
+};
+document.getElementById('delRouteBtn').onclick=()=>{
+  if(ed.paths.length<=1){ toast('至少保留一条路线','err'); return; }
+  if(!confirm('删除当前路线？此操作可撤销。')) return;
+  pushHistory();
+  ed.paths.splice(ed.activeRoute,1);
+  ed.activeRoute=Math.min(ed.activeRoute,ed.paths.length-1);
+  refreshPathUI(); draw(); toast('已删除当前路线（可撤销）');
+};
 document.getElementById('pointList').addEventListener('click',e=>{
   const t=e.target.closest('[data-cut]'); if(!t)return;
   const i=Number(t.dataset.cut);
@@ -729,7 +827,7 @@ document.getElementById('undoBtn').onclick=undo;
 document.getElementById('redoBtn').onclick=redo;
 document.getElementById('clearPathBtn').onclick=()=>{
   if(!ed.path.length)return;
-  pushHistory(); ed.path=[]; refreshPathUI(); draw(); toast('已清空路径（可撤销）');
+  pushHistory(); ed.path.splice(0); refreshPathUI(); draw(); toast('已清空当前路线（可撤销）');
 };
 document.getElementById('reversePathBtn').onclick=()=>{
   if(ed.path.length<2)return;
@@ -743,8 +841,9 @@ document.getElementById('applySizeBtn').onclick=()=>{
   if(w===ed.gridW&&h===ed.gridH){ fitCanvas(); return; }
   pushHistory();
   ed.gridW=w; ed.gridH=h;
-  const cut=ed.path.findIndex(([x,y])=>x>=w||y>=h);
-  if(cut>=0){ ed.path=ed.path.slice(0,cut); toast('尺寸缩小，超出新边界的路径点已被截断（可撤销）。','err'); }
+  let clipped=false;
+  ed.paths=ed.paths.map(r=>{ const cut=r.findIndex(([x,y])=>x>=w||y>=h); if(cut>=0){clipped=true;return r.slice(0,cut);} return r; });
+  if(clipped) toast('尺寸缩小，超出新边界的路径点已被截断（可撤销）。','err');
   refreshPathUI(); fitCanvas();
 };
 
@@ -842,15 +941,16 @@ tplRow.innerHTML=BUILTIN_MAPS.map(m=>`<button class="tplBtn" data-tpl="${m.id}">
 tplRow.addEventListener('click',e=>{
   const b=e.target.closest('[data-tpl]'); if(!b)return;
   const m=BUILTIN_MAPS.find(x=>x.id===b.dataset.tpl); if(!m)return;
-  if(ed.path.length&&!confirm('载入模板会替换当前路径与外观，确定继续吗？')) return;
+  if(allPathCells().length&&!confirm('载入模板会替换当前所有路线与外观，确定继续吗？')) return;
   pushHistory();
   Object.assign(ed,{
     name:m.name+'（副本）', id:'', bossName:m.bossName, desc:m.desc,
-    gridW:12, gridH:9, hpMul:m.hpMul,
+    gridW:m.gridW||12, gridH:m.gridH||9, hpMul:m.hpMul,
     theme:[...m.theme], roadFill:m.roadFill, roadEdge:m.roadEdge,
     grassA:m.grassA, grassB:m.grassB, glow:m.glow, accentColor:m.accentColor, deco:m.deco,
-    path:m.path.map(p=>[p[0],p[1]]),
+    paths:(m.paths||[m.path]).map(r=>r.map(p=>[p[0],p[1]])), activeRoute:0,
   });
+  normalizeRoutes();
   applyEdToUI();
   toast('已载入模板：'+m.name,'ok');
 });
@@ -1005,18 +1105,36 @@ function flashExportMsg(msg,kind){
   el.innerHTML=`<div class="msgBox ${kind}">${msg}</div>`;
 }
 function validate(){
-  if(ed.path.length<2) return '路径至少需要 2 个点，请先在画布上点击绘制路径。';
-  for(const [x,y] of ed.path){
-    if(x<0||y<0||x>=ed.gridW||y>=ed.gridH) return '路径有超出地图边界的点，请修正。';
+  const routes=ed.paths;
+  if(!routes.length) return '至少需要一条出生路线。';
+  let base=null;
+  const global=new Set();
+  for(let ri=0;ri<routes.length;ri++){
+    const r=routes[ri], label=`路线 ${ri+1}`;
+    if(r.length<2) return `${label} 至少需要 2 个点，请先在画布上点击绘制路线。`;
+    for(const [x,y] of r){
+      if(x<0||y<0||x>=ed.gridW||y>=ed.gridH) return `${label} 有超出地图边界的点，请修正。`;
+    }
+    for(let i=1;i<r.length;i++){
+      if(!isAdjacent(r[i-1],r[i])) return `${label} 第 ${i} 与第 ${i+1} 个点不相邻，路线必须连续。`;
+    }
+    const seen=new Set();
+    for(const [x,y] of r){
+      const k=x+','+y;
+      if(seen.has(k)) return `${label} 在自身交叉/重复，请修正。`;
+      seen.add(k);
+    }
+    const end=r[r.length-1];
+    if(!base) base=end;
+    else if(base[0]!==end[0]||base[1]!==end[1]) return '所有路线的终点必须是同一个基地格，请把各路线画到同一格。';
   }
-  for(let i=1;i<ed.path.length;i++){
-    if(!isAdjacent(ed.path[i-1],ed.path[i])) return `第 ${i} 与第 ${i+1} 个点不相邻，路径必须是连续路线。`;
-  }
-  const seen=new Set();
-  for(const [x,y] of ed.path){
-    const k=x+','+y;
-    if(seen.has(k)) return '路径在自身交叉/重复，请修正。';
-    seen.add(k);
+  // 不同路线之间允许在中途交叉，但出生点不能落在另一条路线上
+  for(let ri=0;ri<routes.length;ri++){
+    const start=routes[ri][0];
+    for(let rj=0;rj<routes.length;rj++){
+      if(ri===rj) continue;
+      if(routes[rj].some(p=>p[0]===start[0]&&p[1]===start[1])) return `路线 ${ri+1} 的出生点与路线 ${rj+1} 重叠，请换一个出生位置。`;
+    }
   }
   if(ed.gridW<MIN_GW||ed.gridW>MAX_GW||ed.gridH<MIN_GH||ed.gridH>MAX_GH) return '地图尺寸超出允许范围。';
   const id=ed.id||slugify(ed.name);
@@ -1052,7 +1170,8 @@ function buildExportPayload(){
     grassA:hexToRgba(ed.grassA,.92), grassB:hexToRgba(ed.grassB,.92),
     glow:hexToRgba(ed.glow,.22), accentColor:ed.accentColor,
     deco:ed.deco,
-    path:ed.path.map(p=>[p[0],p[1]]),
+    path:(ed.paths[0]||[]).map(p=>[p[0],p[1]]),
+    paths:ed.paths.map(r=>r.map(p=>[p[0],p[1]])),
     gridW:ed.gridW, gridH:ed.gridH, hpMul:Number(ed.hpMul)||1,
     bossPool:bossPoolIds,
     waveEnemyCountBase:ed.waveEnemyCountBase, waveEnemyCountGrowth:ed.waveEnemyCountGrowth,
@@ -1146,12 +1265,13 @@ document.getElementById('importJsonInput').addEventListener('change',e=>{
     try{
       const data=JSON.parse(ev.target.result);
       const src=(data&&data.ed)?data.ed:(data&&data.mapDef?data.mapDef:null);
-      if(!src||!Array.isArray(src.path)) throw new Error('bad');
+      if(!src||(!Array.isArray(src.path)&&!Array.isArray(src.paths))) throw new Error('bad');
       pushHistory();
       Object.assign(ed,src);
       ed.customBoss=Object.assign(defaultEd().customBoss,src.customBoss||{});
       ed.waveOverrides=Object.assign({},src.waveOverrides||{});
       ed.bossPool=Array.isArray(src.bossPool)?[...src.bossPool]:[];
+      normalizeRoutes();
       applyEdToUI();
       toast('工程已导入','ok');
       flashExportMsg('✅ 工程已导入，可继续编辑或导出。','ok');
@@ -1185,6 +1305,7 @@ function loadLocalDraft(silent){
     ed.customBoss=Object.assign(defaultEd().customBoss,ed.customBoss||{});
     ed.waveOverrides=Object.assign({},ed.waveOverrides||{});
     ed.bossPool=Array.isArray(ed.bossPool)?[...ed.bossPool]:[];
+    normalizeRoutes();
     applyEdToUI();
     if(!silent) toast('草稿已加载','ok');
     return true;
